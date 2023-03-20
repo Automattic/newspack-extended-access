@@ -1,0 +1,24 @@
+{
+  "name": "automattic/newspack-extended-access",
+  "description": "Extended Access integration for Newspack",
+  "type": "wordpress-plugin",
+  "license": "GPL-3.0",
+  "require-dev": {
+    "automattic/vipwpcs": "^2.0.0",
+    "wp-coding-standards/wpcs": "*",
+    "dealerdirect/phpcodesniffer-composer-installer": "*",
+    "phpcompatibility/phpcompatibility-wp": "*",
+    "yoast/phpunit-polyfills": "^1.0",
+    "phpunit/phpunit": "^7.0 || ^9.5"
+  },
+  "autoload": {
+    "classmap": [
+      "./includes"
+    ]
+  },
+  "config": {
+    "allow-plugins": {
+      "dealerdirect/phpcodesniffer-composer-installer": true
+    }
+  }
+}
