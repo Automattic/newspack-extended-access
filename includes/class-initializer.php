@@ -17,6 +17,7 @@ class Initializer {
 	 */
 	public static function init() {
 		WooCommerce::init();
+		YoastSEO::init();
 	}
 
 }
