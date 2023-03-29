@@ -37,7 +37,7 @@ class YoastSEO {
 		// if WooCommerce Membership plugin is installed and active.
 		if ( function_exists( 'wc_memberships_is_post_content_restricted' ) ) {
 			// Add 'isAccessibleForFree' schema for compatibility with Google Extended Access.
-			$data['isAccessibleForFree'] = wc_memberships_is_post_content_restricted();
+			$data['isAccessibleForFree'] = ! wc_memberships_is_post_content_restricted();
 		}
 
 		return $data;
