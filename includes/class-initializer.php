@@ -7,6 +7,8 @@
 
 namespace Newspack_Extended_Access;
 
+use Newspack;
+
 /**
  * Class to handle the plugin initialization
  */
@@ -16,8 +18,14 @@ class Initializer {
 	 * Runs the initialization.
 	 */
 	public static function init() {
-		WooCommerce::init();
-		YoastSEO::init();
+		// TODO (@AnuragVasanwala): Please remove try...catch. It is only enabled for testing purpose.
+		try {
+			WooCommerce::init();
+			ExtendedAccess_REST_Endpoint::init();
+			Google_ExtendedAccess::init();
+		} catch ( \Error $er ) {
+			echo esc_html( $er );
+		}
 	}
 
 }

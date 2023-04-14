@@ -6,7 +6,7 @@
  * Author:          Automattic
  * Text Domain:     newspack-extended-access
  * Domain Path:     /languages
- * Version:         1.60.0
+ * Version:         0.22
  *
  * @package newspack-extended-access
  */
