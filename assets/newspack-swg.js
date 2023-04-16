@@ -153,7 +153,7 @@ function InitGaaMetering() {
      * Initialize GAA for Extended Access.
      */
     GaaMetering.init({
-        googleApiClientId: '224001690291-52f6af34qi6b7ug7h6r0vf8tdudlmhi3.apps.googleusercontent.com',
+        googleApiClientId: AuthSettings.googleClientId, // For Newspack Staging Site: '224001690291-52f6af34qi6b7ug7h6r0vf8tdudlmhi3.apps.googleusercontent.com'
         userState: getUserState,
         allowedReferrers: allowedReferrers,
         handleLoginPromise: handleLoginPromise,

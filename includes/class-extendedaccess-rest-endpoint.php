@@ -96,6 +96,7 @@ class ExtendedAccess_REST_Endpoint {
 	 * @param  string $email EmailId of the new registered user.
 	 */
 	public static function assign_user_plan( $email ) {
+		$newspack_extended_access_options = get_option( 'newspack_extended_access_configuration' );
 		$existing_user = \get_user_by( 'email', $email );
 
 		if ( $existing_user ) {
@@ -103,7 +104,7 @@ class ExtendedAccess_REST_Endpoint {
 			$result = Newspack\Reader_Activation::set_current_reader( $existing_user->ID );
 
 			$user_id             = $existing_user->ID;
-			$membership_plan     = wc_memberships_get_membership_plan( 'premium-membership' );
+			$membership_plan     = wc_memberships_get_membership_plan( $newspack_extended_access_options['default_subscription'] );
 			$is_active_member    = wc_memberships_is_user_member( $user_id, $membership_plan->id, false );
 			$existing_membership = wc_memberships_get_user_membership( $user_id, $membership_plan->id );
 			$plans               = wc_memberships_get_membership_plans();
@@ -149,7 +150,7 @@ class ExtendedAccess_REST_Endpoint {
 				return \rest_ensure_response(
 					array(
 						'granted' => false,
-						'reason'  => $result,
+						'reason'  => 'not-existing-user',
 					)
 				);
 			}
