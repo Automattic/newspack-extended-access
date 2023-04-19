@@ -70,6 +70,8 @@ class Google_ExtendedAccess {
 	public static function enqueue_script() {
 		// Add scripts only for `post` type.
 		if ( get_post_type() === 'post' ) { // Add slug in condition.
+			$newspack_extended_access_options = get_option( 'newspack_extended_access_configuration' );
+
 			// Newspack Extended Access Script.
 			wp_register_script( 'newspack-swg', '/wp-content/plugins/newspack-extended-access/assets/newspack-swg.js', array(), '0.21', false );
 			wp_enqueue_script( 'newspack-swg' );
@@ -83,8 +85,9 @@ class Google_ExtendedAccess {
 				'newspack-swg',
 				'AuthSettings',
 				array(
-					'nonce'            => wp_create_nonce( 'wp_rest' ),
 					'allowedReferrers' => $allowed_referrers,
+					'googleClientId'   => $newspack_extended_access_options['google_client_id'],
+					'nonce'            => wp_create_nonce( 'wp_rest' ),
 				)
 			);
 

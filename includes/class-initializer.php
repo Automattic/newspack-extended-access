@@ -24,6 +24,7 @@ class Initializer {
 			ExtendedAccess_REST_Endpoint::init();
 			Google_ExtendedAccess::init();
 			Single_Post_Subscription::init();
+			Option_Page::init();
 		} catch ( \Error $er ) {
 			echo esc_html( $er );
 		}
