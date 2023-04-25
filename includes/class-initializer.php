@@ -37,7 +37,7 @@ class Initializer {
 			} else {
 				self::show_admin_notice__error();
 			}
-		} catch ( \Error $er ) {
+		} catch ( Error $er ) {
 			echo esc_html( $er );
 		}
 	}

@@ -9,12 +9,15 @@
 namespace Newspack\Extended_Access;
 
 use Newspack;
+use WP_REST_Server;
 
 /**
  * Adds REST Endpoints to register and check status
  * of the current Google Extended Access user.
  */
 class REST_Endpoint {
+
+	const NAMESPACE = 'newspack-extended-access/v1';
 
 	/**
 	 * Set up hooks and filters.
@@ -28,28 +31,28 @@ class REST_Endpoint {
 	 */
 	public static function register_api_endpoints() {
 		\register_rest_route(
-			'newspack-extended-access/v1',
+			self::NAMESPACE,
 			'/login/status',
 			array(
-				'methods'  => \WP_REST_Server::READABLE,
+				'methods'  => WP_REST_Server::READABLE,
 				'callback' => array( __CLASS__, 'api_login_status' ),
 			)
 		);
 
 		\register_rest_route(
-			'newspack-extended-access/v1',
+			self::NAMESPACE,
 			'/login/google',
 			array(
-				'methods'  => \WP_REST_Server::CREATABLE,
+				'methods'  => WP_REST_Server::CREATABLE,
 				'callback' => array( __CLASS__, 'api_google_login_register' ),
 			)
 		);
 
 		\register_rest_route(
-			'newspack-extended-access/v1',
+			self::NAMESPACE,
 			'/subscription/register',
 			array(
-				'methods'  => \WP_REST_Server::READABLE,
+				'methods'  =>WP_REST_Server::READABLE,
 				'callback' => array( __CLASS__, 'api_register_subscription' ),
 			)
 		);
@@ -58,14 +61,14 @@ class REST_Endpoint {
 	/**
 	 * Handles Google Extended Access registration route.
 	 *
-	 * @param  \WP_REST_Request $request Request object.
+	 * @param  WP_REST_Request $request Request object.
 	 * @return mixed            Returns Extended Access userState  object.
 	 */
 	public static function api_register_subscription( $request ) {
 		try {
 			// TODO (@AnuragVasanwala): Remove getting post-id and user-id from headers.
 			$post_id       = $request->get_header( 'X-WP-Post-ID' );
-			$existing_user = \get_user_by( 'email', $request->get_header( 'X-WP-User-Email' ) );
+			$existing_user = get_user_by( 'email', $request->get_header( 'X-WP-User-Email' ) );
 			
 			if ( $existing_user ) {
 				$user_id = $existing_user->ID;
@@ -80,7 +83,7 @@ class REST_Endpoint {
 				}
 			}
 			return rest_ensure_response( array( 'data' => 'NO_USER_OR_POST' ) );
-		} catch ( \Error $er ) {
+		} catch ( Error $er ) {
 			return rest_ensure_response( array( 'data' => $er ) );
 		}
 	}
@@ -88,7 +91,7 @@ class REST_Endpoint {
 	/**
 	 * Handles Google Extended Access registration route.
 	 *
-	 * @param  \WP_REST_Request $request Request object.
+	 * @param  WP_REST_Request $request Request object.
 	 * @return mixed            Returns Extended Access userState  object.
 	 */
 	public static function api_google_login_register( $request ) {
@@ -99,7 +102,7 @@ class REST_Endpoint {
 		// Get Google Email.
 		$email = $token->email;
 
-		$existing_user = \get_user_by( 'email', $email );
+		$existing_user = get_user_by( 'email', $email );
 
 		$granted = false;
 
@@ -140,7 +143,7 @@ class REST_Endpoint {
 
 		if ( isset( $_COOKIE[ $cookie_name ] ) ) {
 			$granted  = true;
-			$response = \rest_ensure_response(
+			$response = rest_ensure_response(
 				array(
 					'id'                    => base64_encode( $token->sub ),
 					'postId'                => $post_id,
@@ -153,7 +156,7 @@ class REST_Endpoint {
 			return $response;
 		} else {
 			$granted  = false;
-			$response = \rest_ensure_response(
+			$response = rest_ensure_response(
 				array(
 					'id'                    => base64_encode( $token->sub ),
 					'postId'                => $post_id,
@@ -170,23 +173,23 @@ class REST_Endpoint {
 	/**
 	 * Handles Google Extended Access login status route.
 	 *
-	 * @param  \WP_REST_Request $request Request object.
+	 * @param  WP_REST_Request $request Request object.
 	 * @return mixed            Returns Extended Access userState object.
 	 */
 	public static function api_login_status( $request ) {
-		$logged_in_user = \wp_get_current_user();
+		$logged_in_user = wp_get_current_user();
 
 		if ( $logged_in_user ) {
 			$email = $logged_in_user->user_email;
 
-			$existing_user = \get_user_by( 'email', $email );
+			$existing_user = get_user_by( 'email', $email );
 
 			if ( $existing_user ) {
 				// Log the user in.
 				$result = Newspack\Reader_Activation::set_current_reader( $existing_user->ID );
 
 				if ( is_wp_error( $result ) ) {
-					$response = \rest_ensure_response(
+					$response = rest_ensure_response(
 						array(
 							'granted' => false,
 							'reason'  => $result,
@@ -196,7 +199,7 @@ class REST_Endpoint {
 					return $response;
 				}
 			} else {
-				$response = \rest_ensure_response(
+				$response = rest_ensure_response(
 					array(
 						'granted' => false,
 						'reason'  => 'USER_DOES_NOT_EXISTS',
@@ -220,7 +223,7 @@ class REST_Endpoint {
 				if ( isset( $_COOKIE[ $cookie_name ] ) ) {
 					$granted = true;
 
-					$response = \rest_ensure_response(
+					$response = rest_ensure_response(
 						array(
 							'id'                    => base64_encode( $jwt_sub ),
 							'email'                 => $email,
@@ -232,7 +235,7 @@ class REST_Endpoint {
 					$response->set_headers( [ 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ] );
 					return $response;
 				} else {
-					$response = \rest_ensure_response(
+					$response = rest_ensure_response(
 						array(
 							'id'                    => base64_encode( $jwt_sub ),
 							'email'                 => $email,
@@ -244,7 +247,7 @@ class REST_Endpoint {
 					return $response;
 				}
 			} else {
-				$response = \rest_ensure_response(
+				$response = rest_ensure_response(
 					array(
 						'granted' => false,
 					)
@@ -253,7 +256,7 @@ class REST_Endpoint {
 				return $response;
 			}
 		} else {
-			$response = \rest_ensure_response(
+			$response = rest_ensure_response(
 				array(
 					'granted' => false,
 					'reason'  => 'NO_LOGGEND_IN_USER',
