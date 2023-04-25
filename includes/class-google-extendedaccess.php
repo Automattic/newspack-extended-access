@@ -3,10 +3,10 @@
  * Registers required scripts for SwG implementation
  * specific to Newspack functionality.
  *
- * @package newspack-extended-access
+ * @package Newspack\Extended_Access
  */
 
-namespace Newspack_Extended_Access;
+namespace Newspack\Extended_Access;
 
 use Newspack;
 
@@ -30,8 +30,7 @@ class Google_ExtendedAccess {
 	 * Embeds required LD+JSON schema for Google Extended Access.
 	 */
 	public static function add_extended_access_ld_json() {
-		// 'wc_memberships_is_post_content_restricted()' function will only available
-		// if WooCommerce Membership plugin is installed and active.
+		// 'wc_memberships_is_post_content_restricted()' function will only available if WooCommerce Membership plugin is installed and active.
 		if ( function_exists( 'wc_memberships_is_post_content_restricted' ) ) {
 			// Add 'isAccessibleForFree' schema for compatibility with Google Extended Access.
 			$flags = ( JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
@@ -71,7 +70,7 @@ class Google_ExtendedAccess {
 		// Add scripts only for `post` type.
 		if ( get_post_type() === 'post' ) { // Add slug in condition.
 			// Newspack Extended Access Script.
-			wp_register_script( 'newspack-swg', '/wp-content/plugins/newspack-extended-access/assets/newspack-swg.js', array(), '0.21', false );
+			wp_register_script( 'newspack-swg', '/wp-content/plugins/newspack-extended-access/assets/js/newspack-swg.js', array(), '1.0', false );
 			wp_enqueue_script( 'newspack-swg' );
 
 			$sanitized_server_name = isset( $_SERVER['SERVER_NAME'] ) ? filter_var( $_SERVER['SERVER_NAME'], FILTER_SANITIZE_URL ) : '';
@@ -81,10 +80,13 @@ class Google_ExtendedAccess {
 			// Nonce for REST API.
 			wp_localize_script(
 				'newspack-swg',
-				'AuthSettings',
+				'authenticationSettings',
 				array(
-					'nonce'            => wp_create_nonce( 'wp_rest' ),
-					'allowedReferrers' => $allowed_referrers,
+					'nonce'             => wp_create_nonce( 'wp_rest' ),
+					'allowedReferrers'  => $allowed_referrers,
+					// TODO (@AnuragVasanwala): Parameter 'postID' should be remove before deploying to production.
+					'postID'            => \get_the_ID(),
+					'googleClientApiID' => get_option( 'newspack_extended_access__google_client_api_id', '' ),
 				)
 			);
 
@@ -112,7 +114,7 @@ class Google_ExtendedAccess {
 					'id'     => 'google-news-swg-gaa',
 					'async'  => true,
 					'src'    => esc_url( 'https://news.google.com/swg/js/v1/swg-gaa.js' ),
-					'onload' => 'InitGaaMetering()',
+					'onload' => 'initGaaMetering()',
 				)
 			);
 		}
