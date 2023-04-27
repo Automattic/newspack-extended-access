@@ -20,7 +20,7 @@ class Newspack_Test_Google_ExtendedAccess extends WP_UnitTestCase {
 	public function set_up() {      
 		parent::set_up();
 
-		// Initialize 
+		// Initialize .
 		\Newspack\Extended_Access\Google_ExtendedAccess::init();
 		
 		// Sample Post(s).
@@ -39,11 +39,13 @@ class Newspack_Test_Google_ExtendedAccess extends WP_UnitTestCase {
 		$this->assertTrue( wp_script_is( 'newspack-swg', 'registered' ) );
 		$this->assertTrue( wp_script_is( 'newspack-swg', 'enqueued' ) );
 
+        // phpcs:disable
 		// Following scripts are directly printed using 'wp_print_script_tag' so they cannot be checked.
 		// $this->assertTrue( wp_script_is( 'google-account-gsi-client', 'registered' ) );
 		// $this->assertTrue( wp_script_is( 'google-account-gsi-client', 'enqueued' ) );
 		// $this->assertTrue( wp_script_is( 'google-news-swg-gaa', 'registered' ) );
 		// $this->assertTrue( wp_script_is( 'google-news-swg-gaa', 'enqueued' ) );
+        // phpcs:enable
 	}
 	
 }

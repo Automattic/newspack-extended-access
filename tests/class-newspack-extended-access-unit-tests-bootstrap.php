@@ -8,7 +8,7 @@
 /**
  * Newspack Unit Tests Bootstrap.
  */
-class Newspack_Unit_Tests_Bootstrap {
+class Newspack_Extended_Access_Unit_Tests_Bootstrap {
 
 	/**
 	 * The unit tests bootstrap instance.

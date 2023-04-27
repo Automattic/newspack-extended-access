@@ -792,63 +792,6 @@ class Plugin_Manager {
 	}
 
 	/**
-	 * Install a plugin from an arbitrary URL.
-	 *
-	 * @param string $plugin_url The URL to the plugin zip file.
-	 * @return bool True on success. False on failure.
-	 */
-	public static function install_from_zip( $zip_path ) {
-		require_once ABSPATH . 'wp-admin/includes/file.php';
-		require_once ABSPATH . 'wp-admin/includes/plugin-install.php';
-		require_once ABSPATH . 'wp-admin/includes/class-wp-upgrader.php';
-		require_once ABSPATH . 'wp-admin/includes/plugin.php';
-
-		WP_Filesystem();
-
-		$skin     = new \Automatic_Upgrader_Skin();
-		$upgrader = new \WP_Upgrader( $skin );
-		$upgrader->init();
-
-		$download = $zip_path;
-		// if ( is_wp_error( $download ) ) {
-		// return new WP_Error( 'newspack_plugin_failed_install', $download->get_error_message() );
-		// }
-
-		// // GitHub appends random strings to the end of its downloads.
-		// // If we asked for foo.zip, make sure the downloaded file is called foo.tmp.
-		// if ( stripos( $plugin_url, 'github' ) ) {
-		// $plugin_url_parts  = explode( '/', $plugin_url );
-		// $desired_file_name = str_replace( '.zip', '', end( $plugin_url_parts ) );
-		// $new_file_name     = preg_replace( '#(' . $desired_file_name . '.*).tmp#', $desired_file_name . '.tmp', $download );
-		// copy( $download, $new_file_name ); // phpcs:ignore
-		// $download = $new_file_name;
-		// }
-
-		$working_dir = $upgrader->unpack_package( $download );
-		if ( is_wp_error( $working_dir ) ) {
-			return new WP_Error( 'newspack_plugin_failed_install', $working_dir->get_error_message() );
-		}
-
-		$result = $upgrader->install_package(
-			[
-				'source'        => $working_dir,
-				'destination'   => WP_PLUGIN_DIR,
-				'clear_working' => true,
-				'hook_extra'    => [
-					'type'   => 'plugin',
-					'action' => 'install',
-				],
-			]
-		);
-		if ( is_wp_error( $result ) ) {
-			return new WP_Error( 'newspack_plugin_failed_install', $result->get_error_message() );
-		}
-
-		wp_clean_plugins_cache();
-		return true;
-	}
-
-	/**
 	 * Reduce get_plugins() info to form 'folder => file'.
 	 *
 	 * @param array  $plugins Associative array of plugin files to paths.

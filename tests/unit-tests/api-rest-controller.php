@@ -69,7 +69,8 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		wp_logout();
 		
 		// Create a cookie for testing purpose.
-		$cookie_name             = 'newspack_' . md5( $this->post . $this->reader );
+		$cookie_name = 'newspack_' . md5( $this->post . $this->reader );
+        // phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
 		$_COOKIE[ $cookie_name ] = 'true';
 	}
 
@@ -143,7 +144,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 
 		// Prepare and send Request.
 		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/login/google' );
-		$request->set_header( 'Content-Type', 'text/plain', );
+		$request->set_header( 'Content-Type', 'text/plain' );
 		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
 
@@ -165,7 +166,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 
 		// Prepare and send Request.
 		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/login/google' );
-		$request->set_header( 'Content-Type', 'text/plain', );
+		$request->set_header( 'Content-Type', 'text/plain' );
 		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
 
@@ -187,11 +188,11 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 
 		// Prepare and send Request.
 		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/login/google' );
-		$request->set_header( 'Content-Type', 'text/plain', );
+		$request->set_header( 'Content-Type', 'text/plain' );
 		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
 
-		// Following gaaUser is the part of internal testing user: reader@test.com
+		// Following gaaUser is the part of internal testing user: 'reader@test.com'.
 		$request->set_body( 'eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg2OTY5YWVjMzdhNzc4MGYxODgwNzg3NzU5M2JiYmY4Y2Y1ZGU1Y2UiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJuYmYiOjE2ODI1Njk0NjEsImF1ZCI6InNhbXBsZS5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsInN1YiI6IjAxMjM0NTY3ODkiLCJlbWFpbCI6InJlYWRlckB0ZXN0LmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhenAiOiJzYW1wbGUuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJuYW1lIjoiTmV3c3BhY2sgUmVhZGVyIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL3NhbXBsZSIsImdpdmVuX25hbWUiOiJOUCIsImZhbWlseV9uYW1lIjoiRUEiLCJpYXQiOjE2ODI1Njk3NjEsImV4cCI6OTk5OTk5OTk5OSwianRpIjoiMDEyMzQ1Njc4OSJ9.yk1_Ayzo4Q4gYB2vSRExmgZ982t3Rg0qy2edirnP-eWZwT9SYULYi29c3JvzAPq1X4_KJnxaWFXzRhUtDs1amJbqDtM2JoIun6i9BKTbK3NtL1gFzpv9MM9s5rmWtx9lU0ayQX6nydSx9VefEyWyXI5hdOrLr-COMI_vCpK15R7C-G83Qz6OEEvHBzm3I_nu7BbyNvGq2s1bMQkfxgAuV6A9bCDZYQKBkHQHb6eNoIZEwnSneTtd03qG_B8gHRSO7v_4l234ZD0Z17tNs9kNXPTttLpl6Q-_vZrsEI-LbYLPaR1F3uM7BkFVAzpufGGoAstCDSr_7s-zV3qM9AAnjg' );
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
@@ -209,14 +210,13 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 
 		// Prepare and send Request.
 		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/subscription/register' );
-		$request->set_header( 'Content-Type', 'text/plain', );
+		$request->set_header( 'Content-Type', 'text/plain' );
 		$request->set_header( 'X-WP-User-Email', 'non.existing.user@test.com' );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
 		
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
-		// $this->assertTrue( $response_data['granted'] , 'Newly registered subscriber should be granted.' );
 		$this->assertEquals( 'NO_USER_OR_POST', $response_data['data'] );
 	}
 
@@ -224,13 +224,14 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	 * Following method ensures cookie creation for registered user.
 	 * Note: It is not possible to test this method due to call to setcookie from API Endpoint.
 	 */
+    // phpcs:disable
 	// public function test_subscriber_registration__existing_user() {
 	// Set to no logged-in user.
 	// wp_set_current_user( 0 );
 
 	// Prepare and send Request.
 	// $request  = new WP_REST_Request( 'GET', $this->api_namespace . '/subscription/register' );
-	// $request->set_header( 'Content-Type', 'text/plain', );
+	// $request->set_header( 'Content-Type', 'text/plain' );
 	// $request->set_header( 'X-WP-User-Email', 'reader@test.com' );
 	// $request->set_header( 'X-WP-Post-ID', $this->post );
 		
@@ -240,5 +241,6 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	// $this->assertTrue( $response_data['granted'] , 'Newly registered subscriber should be granted.' );
 	// $this->assertEquals( 'ok', $response_data['data'] );
 	// }
+    // phpcs:enable
 	
 }

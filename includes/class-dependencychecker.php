@@ -20,9 +20,8 @@ class DependencyChecker {
 
 	/**
 	 * Check if plugin is installed by getting all plugins from the plugins dir.
-	 *
-	 * @param $plugin_slug Slug of the plugin to check for.
-	 *
+	 * 
+	 * @param  string $plugin_slug Slug of the plugin to check for.
 	 * @return bool
 	 */
 	public static function check_plugin_installed( $plugin_slug ): bool {
@@ -34,8 +33,7 @@ class DependencyChecker {
 	/**
 	 * Check if plugin is installed.
 	 *
-	 * @param string $plugin_slug Slug of the plugin to check for.
-	 *
+	 * @param  string $plugin_slug Slug of the plugin to check for.
 	 * @return bool
 	 */
 	public static function check_plugin_active( $plugin_slug ): bool {

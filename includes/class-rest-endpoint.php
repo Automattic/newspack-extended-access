@@ -81,6 +81,7 @@ class REST_Endpoint {
 					$cookie_name = 'newspack_' . md5( $post_id . $user_id );
 					// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
 					$domain = ( isset( $_SERVER['HTTP_HOST'] ) && 'localhost' != $_SERVER['HTTP_HOST'] ) ? $_SERVER['HTTP_HOST'] : false;
+					// phpcs:disable WordPressVIPMinimum.Functions.RestrictedFunctions.cookies_setcookie
 					setcookie( $cookie_name, 'true', time() + 31556926, '/', $domain, is_ssl(), false );
 					return rest_ensure_response( array( 'data' => 'ok' ) );
 				}
