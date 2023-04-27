@@ -13,7 +13,7 @@ class Newspack_Extended_Access_Unit_Tests_Bootstrap {
 	/**
 	 * The unit tests bootstrap instance.
 	 *
-	 * @var Newspack_Unit_Tests_Bootstrap
+	 * @var Newspack_Extended_Access_Unit_Tests_Bootstrap
 	 */
 	protected static $instance = null;
 
@@ -69,7 +69,7 @@ class Newspack_Extended_Access_Unit_Tests_Bootstrap {
 	/**
 	 * Get the single class instance.
 	 *
-	 * @return Newspack_Unit_Tests_Bootstrap
+	 * @return Newspack_Extended_Access_Unit_Tests_Bootstrap
 	 */
 	public static function instance() {
 		if ( is_null( self::$instance ) ) {
@@ -80,4 +80,4 @@ class Newspack_Extended_Access_Unit_Tests_Bootstrap {
 	}
 }
 
-Newspack_Unit_Tests_Bootstrap::instance();
+Newspack_Extended_Access_Unit_Tests_Bootstrap::instance();
