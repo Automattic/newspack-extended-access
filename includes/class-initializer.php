@@ -25,6 +25,8 @@ class Initializer {
 	public static function init() {
 		// TODO (@AnuragVasanwala): Please remove try...catch. It is only enabled for testing purpose.
 		try {
+			add_action( 'admin_notices', [ __CLASS__, 'show_admin_notice__error' ] );
+
 			/** Initialize non-dependency classes. */
 			WooCommerce::init();
 			WC_Settings_Memberships_Option_Tab::init();
@@ -34,8 +36,6 @@ class Initializer {
 				REST_Endpoint::init();
 				Google_ExtendedAccess::init();
 				Single_Post_Subscription::init();
-			} else {
-				self::show_admin_notice__error();
 			}
 		} catch ( Error $er ) {
 			echo esc_html( $er );
@@ -59,6 +59,7 @@ class Initializer {
 	 */
 	public static function show_admin_notice__error() {
 		$plugin_notice = '';  
+
 		if ( ! DependencyChecker::is_wc_memberships_installed() ) {
 			$plugin_notice = '<b>Newspack Extended Access</b> plugin requires <b>WooCommerce Memberships</b> to be installed, active and configured.';
 		} elseif ( ! DependencyChecker::is_wc_memberships_active() ) {
@@ -67,15 +68,17 @@ class Initializer {
 			$plugin_notice = '<b>Newspack Extended Access</b> plugin requires <b>Google Client API ID</b> to be configured. Please check your <b>Google Client API ID</b> into <a href="' . admin_url( 'admin.php?page=wc-settings&tab=memberships&section=newspack-extended-access' ) . '">Newspack Extended Access Settings</a>.';
 		}
 
-		?>
-		<div class="notice notice-error">
-			<p>
-				<?php 
-				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-				echo $plugin_notice;
-				?>
-			</p>
-		</div>
-		<?php
+		if ( ! empty( $plugin_notice ) ) {
+			?>
+			<div class="notice notice-error">
+				<p>
+					<?php 
+					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+					echo $plugin_notice;
+					?>
+				</p>
+			</div>
+			<?php
+		}       
 	}
 }
