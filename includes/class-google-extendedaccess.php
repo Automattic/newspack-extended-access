@@ -79,7 +79,7 @@ class Google_ExtendedAccess {
 			$home_url_parts = wp_parse_url( home_url() );
 			
 			// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Already validated.
-			$allowed_referrers = $home_url_parts['scheme'] . '://' . $home_url_parts['host'];
+			$allowed_referrers = [ $home_url_parts['host'] ];
 
 			// Nonce for REST API.
 			wp_localize_script(
