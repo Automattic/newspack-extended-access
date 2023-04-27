@@ -34,8 +34,9 @@ class REST_Endpoint {
 			self::NAMESPACE,
 			'/login/status',
 			array(
-				'methods'  => WP_REST_Server::READABLE,
-				'callback' => array( __CLASS__, 'api_login_status' ),
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( __CLASS__, 'api_login_status' ),
+				'permission_callback' => '__return_true',
 			)
 		);
 
@@ -43,8 +44,9 @@ class REST_Endpoint {
 			self::NAMESPACE,
 			'/login/google',
 			array(
-				'methods'  => WP_REST_Server::CREATABLE,
-				'callback' => array( __CLASS__, 'api_google_login_register' ),
+				'methods'             => WP_REST_Server::CREATABLE,
+				'callback'            => array( __CLASS__, 'api_google_login_register' ),
+				'permission_callback' => '__return_true',
 			)
 		);
 
@@ -52,8 +54,9 @@ class REST_Endpoint {
 			self::NAMESPACE,
 			'/subscription/register',
 			array(
-				'methods'  =>WP_REST_Server::READABLE,
-				'callback' => array( __CLASS__, 'api_register_subscription' ),
+				'methods'             =>WP_REST_Server::READABLE,
+				'callback'            => array( __CLASS__, 'api_register_subscription' ),
+				'permission_callback' => '__return_true',
 			)
 		);
 	}
@@ -130,7 +133,8 @@ class REST_Endpoint {
 				$user_id = $result->ID;
 			}
 			$current_reader = Newspack\Reader_Activation::set_current_reader( $user_id );
-		
+			$existing_user = get_user_by( 'id', $user_id );
+
 			add_user_meta( $result, 'extended_access_sub', $token->sub );
 
 			remove_filter( 'newspack_reader_activation_enabled', array( __CLASS__, 'bypass_newspack_reader_activation_enabled' ) );

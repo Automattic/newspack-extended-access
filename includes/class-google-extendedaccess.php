@@ -69,8 +69,6 @@ class Google_ExtendedAccess {
 	public static function enqueue_script() {
 		// Add scripts only for `post` type.
 		if ( get_post_type() === 'post' ) { // Add slug in condition.
-			$newspack_extended_access_options = get_option( 'newspack_extended_access_configuration' );
-
 			// Newspack Extended Access Script.
 			wp_register_script( 'newspack-swg', '/wp-content/plugins/newspack-extended-access/assets/js/newspack-swg.js', array(), '1.0', false );
 			wp_enqueue_script( 'newspack-swg' );
