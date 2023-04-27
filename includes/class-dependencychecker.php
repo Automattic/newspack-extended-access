@@ -18,6 +18,8 @@ if ( ! function_exists( 'get_plugins' ) || ! function_exists( 'is_plugin_active'
  */
 class DependencyChecker {
 
+	const WOOCOMMERCE_PLUGIN = 'woocommerce-memberships/woocommerce-memberships.php';
+
 	/**
 	 * Check if plugin is installed by getting all plugins from the plugins dir.
 	 * 
@@ -50,7 +52,7 @@ class DependencyChecker {
 	 * @return bool Return true if plugin installed.
 	 */
 	public static function is_wc_memberships_installed(): bool {
-		if ( self::check_plugin_installed( 'woocommerce-memberships/woocommerce-memberships.php' ) ) {
+		if ( self::check_plugin_installed( self::WOOCOMMERCE_PLUGIN ) ) {
 			return true;
 		}
 		return false;
@@ -62,7 +64,7 @@ class DependencyChecker {
 	 * @return bool Return true if plugin active.
 	 */
 	public static function is_wc_memberships_active(): bool {
-		if ( self::check_plugin_active( 'woocommerce-memberships/woocommerce-memberships.php' ) ) {
+		if ( self::check_plugin_active( self::WOOCOMMERCE_PLUGIN ) ) {
 			return true;
 		}
 		return false;

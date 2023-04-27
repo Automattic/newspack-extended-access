@@ -34,6 +34,9 @@ class Google_ExtendedAccess {
 		if ( function_exists( 'wc_memberships_is_post_content_restricted' ) ) {
 			// Add 'isAccessibleForFree' schema for compatibility with Google Extended Access.
 			$flags = ( JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+			
+			$url_parts = wp_parse_url( home_url() );
+			$domain    = $url_parts['host'];
 
 			$ld_json = array(
 				'@context'            => 'https://schema.org',
@@ -42,7 +45,7 @@ class Google_ExtendedAccess {
 				'isPartOf'            => array(
 					'@type'     => array( 'CreativeWork', 'Product' ),
 					'name'      => get_bloginfo( 'name' ),
-					'productID' => ( isset( $_SERVER['SERVER_NAME'] ) ? filter_var( $_SERVER['SERVER_NAME'], FILTER_SANITIZE_URL ) : '' ) . ':showcase',
+					'productID' => $domain . ':showcase',
 				),
 				'publisher'           => array(
 					'@type' => 'Organization',
@@ -73,9 +76,10 @@ class Google_ExtendedAccess {
 			wp_register_script( 'newspack-swg', '/wp-content/plugins/newspack-extended-access/assets/js/newspack-swg.js', array(), '1.0', false );
 			wp_enqueue_script( 'newspack-swg' );
 
-			$sanitized_server_name = isset( $_SERVER['SERVER_NAME'] ) ? filter_var( $_SERVER['SERVER_NAME'], FILTER_SANITIZE_URL ) : '';
-			$server_url_obj        = wp_parse_url( $sanitized_server_name );
-			$allowed_referrers     = array( ( array_key_exists( 'host', $server_url_obj ) && ! is_null( $server_url_obj['host'] ) ) ? $server_url_obj['host'] : $sanitized_server_name );
+			$home_url_parts = wp_parse_url( home_url() );
+			
+			// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Already validated.
+			$allowed_referrers = $home_url_parts['scheme'] . '://' . $home_url_parts['host'];
 
 			// Nonce for REST API.
 			wp_localize_script(

@@ -55,11 +55,10 @@ class WC_Settings_Memberships_Option_Tab {
 		if ( 'newspack-extended-access' === $current_section ) {
 
 			// Prepare server protocol and domain name.
+			$home_url_parts = wp_parse_url( home_url() );
+			
 			// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Already validated.
-			$protocol              = ( ! empty( $_SERVER['HTTPS'] ) && 'off' !== $_SERVER['HTTPS'] || 443 == $_SERVER['SERVER_PORT'] ) ? 'https://' : 'http://';
-			$sanitized_server_name = isset( $_SERVER['SERVER_NAME'] ) ? filter_var( $_SERVER['SERVER_NAME'], FILTER_SANITIZE_URL ) : '';
-			$server_url_obj        = wp_parse_url( $sanitized_server_name );
-			$allowed_referrers     = $protocol . array( ( array_key_exists( 'host', $server_url_obj ) && ! is_null( $server_url_obj['host'] ) ) ? $server_url_obj['host'] : $sanitized_server_name )[0];
+			$allowed_referrers = $home_url_parts['scheme'] . '://' . $home_url_parts['host'];
 
 			// Prepare title and input-box description.
 			$title_desc = '<p>An integration for utilizing Google Extended Access.</p>';

@@ -22,13 +22,13 @@ class Single_Post_Subscription {
 		 * it removes actions added by woocommerce membership to
 		 * restrict access to post content.
 		 */
-		add_action( 'wp', array( __CLASS__, 'remove_pay_restriction' ), 9 );
+		add_action( 'wp', array( __CLASS__, 'manage_paywall_restriction' ), 9 );
 	}
 
 	/**
 	 * Removes actions added by woocommerce membership to restrict access to post content.
 	 */
-	public static function remove_pay_restriction() {
+	public static function manage_paywall_restriction() {
 		$post_id = get_the_ID();
 		$user_id = get_current_user_id();
 
