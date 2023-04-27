@@ -12,7 +12,7 @@
   </coverage>
   <testsuites>
     <testsuite name="Newspack Test Suite">
-      <directory suffix=".php">./tests/unit-tests</directory>
+      <directory prefix="test-" suffix=".php">./tests/unit-tests</directory>
     </testsuite>
   </testsuites>
 </phpunit>

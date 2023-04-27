@@ -219,28 +219,5 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 
 		$this->assertEquals( 'NO_USER_OR_POST', $response_data['data'] );
 	}
-
-	/**
-	 * Following method ensures cookie creation for registered user.
-	 * Note: It is not possible to test this method due to call to setcookie from API Endpoint.
-	 */
-    // phpcs:disable
-	// public function test_subscriber_registration__existing_user() {
-	// Set to no logged-in user.
-	// wp_set_current_user( 0 );
-
-	// Prepare and send Request.
-	// $request  = new WP_REST_Request( 'GET', $this->api_namespace . '/subscription/register' );
-	// $request->set_header( 'Content-Type', 'text/plain' );
-	// $request->set_header( 'X-WP-User-Email', 'reader@test.com' );
-	// $request->set_header( 'X-WP-Post-ID', $this->post );
-		
-	// $response = $this->server->dispatch( $request );
-	// $response_data = $response->get_data();
-
-	// $this->assertTrue( $response_data['granted'] , 'Newly registered subscriber should be granted.' );
-	// $this->assertEquals( 'ok', $response_data['data'] );
-	// }
-    // phpcs:enable
 	
 }

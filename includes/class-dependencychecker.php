@@ -15,6 +15,8 @@ if ( ! function_exists( 'get_plugins' ) || ! function_exists( 'is_plugin_active'
 
 /**
  * Provide functionality to check the plugin's dependencies on other plugin.
+ *
+ * @since 1.0
  */
 class DependencyChecker {
 
@@ -73,7 +75,7 @@ class DependencyChecker {
 	/**
 	 * Check whether Google Client API ID is valid or not.
 	 *
-	 * @return bool Return true if plugin active.
+	 * @return bool Return true if valid Google Client API ID is present.
 	 */
 	public static function is_valid_google_client_api_id(): bool {
 		if ( filter_var( get_option( 'newspack_extended_access__google_client_api_id', '' ), FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME ) ) {

@@ -78,11 +78,11 @@ class REST_Endpoint {
 
 				if ( isset( $post_id ) ) {
 					// Cookie name, Made from post-id and user-id.
-					$cookie_name = 'newspack_' . md5( $post_id . $user_id );
-					// phpcs:ignore WordPress.Security.ValidatedSanitizedInput.InputNotSanitized
-					$domain = ( isset( $_SERVER['HTTP_HOST'] ) && 'localhost' != $_SERVER['HTTP_HOST'] ) ? $_SERVER['HTTP_HOST'] : false;
+					$cookie_name    = 'newspack_' . md5( $post_id . $user_id );
+					$home_url_parts = wp_parse_url( home_url() );
+
 					// phpcs:disable WordPressVIPMinimum.Functions.RestrictedFunctions.cookies_setcookie
-					setcookie( $cookie_name, 'true', time() + 31556926, '/', $domain, is_ssl(), false );
+					setcookie( $cookie_name, 'true', time() + 31556926, '/', $home_url_parts['host'], is_ssl(), false );
 					return rest_ensure_response( array( 'data' => 'ok' ) );
 				}
 			}
@@ -125,7 +125,7 @@ class REST_Endpoint {
 				update_user_meta( $existing_user->ID, 'extended_access_sub', $token->sub );
 			}
 		} else {
-			\add_filter( 'newspack_reader_activation_enabled', array( __CLASS__, 'bypass_newspack_reader_activation_enabled' ) );
+			add_filter( 'newspack_reader_activation_enabled', array( __CLASS__, 'bypass_newspack_reader_activation_enabled' ) );
 			$result = Newspack\Reader_Activation::register_reader( $email, '', true, array() );
 
 			if ( is_numeric( $result ) ) {

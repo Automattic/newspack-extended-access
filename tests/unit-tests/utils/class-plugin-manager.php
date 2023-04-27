@@ -9,8 +9,6 @@ namespace Newspack\Extended_Access;
 
 use \WP_Error;
 
-defined( 'ABSPATH' ) || exit;
-
 /**
  * General purpose class for managing installation/activation of plugins.
  */

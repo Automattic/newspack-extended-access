@@ -63,7 +63,7 @@ class Initializer {
 		if ( ! DependencyChecker::is_wc_memberships_installed() ) {
 			$plugin_notice = '<b>Newspack Extended Access</b> plugin requires <b>WooCommerce Memberships</b> to be installed, active and configured.';
 		} elseif ( ! DependencyChecker::is_wc_memberships_active() ) {
-			$plugin_notice = '<b>Newspack Extended Access</b> plugin requires <b>WooCommerce Memberships</b> to be active. Open <a href="' . admin_url( 'plugins.php?plugin_status=inactive' ) . '">Plugins Page</a>.';
+			$plugin_notice = '<b>Newspack Extended Access</b> plugin requires <b>WooCommerce Memberships</b> to be active. Open <a href="' . esc_url( admin_url( 'plugins.php?plugin_status=inactive' ) ) . '">Plugins Page</a>.';
 		} elseif ( ! DependencyChecker::is_valid_google_client_api_id() ) {
 			$plugin_notice = '<b>Newspack Extended Access</b> plugin requires <b>Google Client API ID</b> to be configured. Please check your <b>Google Client API ID</b> into <a href="' . admin_url( 'admin.php?page=wc-settings&tab=memberships&section=newspack-extended-access' ) . '">Newspack Extended Access Settings</a>.';
 		}
