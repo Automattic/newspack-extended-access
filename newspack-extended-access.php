@@ -8,7 +8,7 @@
  * Domain Path:     /languages
  * Version:         1.0
  *
- * @package Newspack\Extended_Access
+ * @package Newspack\ExtendedAccess
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -19,4 +19,4 @@ if ( ! defined( 'NEWSPACK_EXTENDED_ACCESS_PLUGIN_FILE' ) ) {
 
 require_once 'vendor/autoload.php';
 
-Newspack\Extended_Access\Initializer::init();
+Newspack\ExtendedAccess\Initializer::init();

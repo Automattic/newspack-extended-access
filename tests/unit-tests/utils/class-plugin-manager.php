@@ -2,10 +2,10 @@
 /**
  * Newspack setup
  *
- * @package Newspack\Extended_Access
+ * @package Newspack\ExtendedAccess
  */
 
-namespace Newspack\Extended_Access;
+namespace Newspack\ExtendedAccess;
 
 use \WP_Error;
 

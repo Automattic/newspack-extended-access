@@ -3,10 +3,10 @@
  * Registers required scripts for SwG implementation
  * specific to Newspack functionality.
  *
- * @package Newspack\Extended_Access
+ * @package Newspack\ExtendedAccess
  */
 
-namespace Newspack\Extended_Access;
+namespace Newspack\ExtendedAccess;
 
 // Check if needed functions exists - if not, require them.
 if ( ! function_exists( 'get_plugins' ) || ! function_exists( 'is_plugin_active' ) ) {
@@ -28,7 +28,7 @@ class DependencyChecker {
 	 * @param  string $plugin_slug Slug of the plugin to check for.
 	 * @return bool
 	 */
-	public static function check_plugin_installed( $plugin_slug ): bool {
+	protected static function check_plugin_installed( $plugin_slug ): bool {
 		$installed_plugins = get_plugins();
 
 		return array_key_exists( $plugin_slug, $installed_plugins ) || in_array( $plugin_slug, $installed_plugins, true );
@@ -40,7 +40,7 @@ class DependencyChecker {
 	 * @param  string $plugin_slug Slug of the plugin to check for.
 	 * @return bool
 	 */
-	public static function check_plugin_active( $plugin_slug ): bool {
+	protected static function check_plugin_active( $plugin_slug ): bool {
 		if ( is_plugin_active( $plugin_slug ) ) {
 			return true;
 		}

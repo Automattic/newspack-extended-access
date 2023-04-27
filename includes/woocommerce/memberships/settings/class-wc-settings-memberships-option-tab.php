@@ -3,10 +3,10 @@
  * Registers required scripts for SwG implementation
  * specific to Newspack functionality.
  *
- * @package Newspack\Extended_Access
+ * @package Newspack\ExtendedAccess
  */
 
-namespace Newspack\Extended_Access;
+namespace Newspack\ExtendedAccess;
 
 use Newspack;
 
@@ -19,15 +19,9 @@ class WC_Settings_Memberships_Option_Tab {
 	 * Set up hooks and filters.
 	 */
 	public static function init() {
-
-		try {
-			// Adds a new option tab to WooCommerce 'Settings -> Memberships' page.
-			add_filter( 'woocommerce_get_sections_memberships', array( __CLASS__, 'woocommerce_get_sections_memberships__add_option_tab' ) );
-			add_filter( 'woocommerce_get_settings_memberships', array( __CLASS__, 'woocommerce_get_settings_memberships__add_option_tab' ), 10, 2 );
-		} catch ( \Error $er ) {
-			echo esc_html( $er );
-		}
-
+		// Adds a new option tab to WooCommerce 'Settings -> Memberships' page.
+		add_filter( 'woocommerce_get_sections_memberships', array( __CLASS__, 'woocommerce_get_sections_memberships__add_option_tab' ) );
+		add_filter( 'woocommerce_get_settings_memberships', array( __CLASS__, 'woocommerce_get_settings_memberships__add_option_tab' ), 10, 2 );
 	}
 
 	/**

@@ -3,10 +3,10 @@
  * Registers required scripts for SwG implementation
  * specific to Newspack functionality.
  *
- * @package Newspack\Extended_Access
+ * @package Newspack\ExtendedAccess
  */
 
-namespace Newspack\Extended_Access;
+namespace Newspack\ExtendedAccess;
 
 use Newspack;
 

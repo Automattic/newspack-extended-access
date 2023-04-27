@@ -3,10 +3,10 @@
  * Adds REST Endpoints to register and check status
  * of the current Google Extended Access user.
  *
- * @package Newspack\Extended_Access
+ * @package Newspack\ExtendedAccess
  */
 
-namespace Newspack\Extended_Access;
+namespace Newspack\ExtendedAccess;
 
 use Newspack;
 use WP_REST_Server;
@@ -15,9 +15,19 @@ use WP_REST_Server;
  * Adds REST Endpoints to register and check status
  * of the current Google Extended Access user.
  */
-class REST_Endpoint {
+class REST_Controller {
 
+	/**
+	 * Plugin route namespace.
+	 */
 	const NAMESPACE = 'newspack-extended-access/v1';
+	
+	/**
+	 * Endpoint constants.
+	 */
+	const LOGIN_OR_REGISTER_GOOGLE_ENDPOINT = '/login/google';
+	const REGISTER_SUBSCRIPTION_ENDPOINT    = '/subscription/register';
+	const VERIFY_USER_ENDPOINT              = '/login/status';
 
 	/**
 	 * Set up hooks and filters.
@@ -30,35 +40,35 @@ class REST_Endpoint {
 	 * Registers REST Endpoints for Extended Access.
 	 */
 	public static function register_api_endpoints() {
-		\register_rest_route(
+		register_rest_route(
 			self::NAMESPACE,
-			'/login/status',
-			array(
-				'methods'             => WP_REST_Server::READABLE,
-				'callback'            => array( __CLASS__, 'api_login_status' ),
-				'permission_callback' => '__return_true',
-			)
-		);
-
-		\register_rest_route(
-			self::NAMESPACE,
-			'/login/google',
+			self::LOGIN_OR_REGISTER_GOOGLE_ENDPOINT,
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
-				'callback'            => array( __CLASS__, 'api_google_login_register' ),
+				'callback'            => array( __CLASS__, 'api_login_or_register_google_account' ),
 				'permission_callback' => '__return_true',
 			)
 		);
 
-		\register_rest_route(
+		register_rest_route(
 			self::NAMESPACE,
-			'/subscription/register',
+			self::REGISTER_SUBSCRIPTION_ENDPOINT,
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'api_register_subscription' ),
 				'permission_callback' => '__return_true',
 			)
 		);
+		
+		register_rest_route(
+			self::NAMESPACE,
+			self::VERIFY_USER_ENDPOINT,
+			array(
+				'methods'             => WP_REST_Server::READABLE,
+				'callback'            => array( __CLASS__, 'api_verify_user' ),
+				'permission_callback' => '__return_true',
+			)
+		);
 	}
 
 	/**
@@ -67,38 +77,7 @@ class REST_Endpoint {
 	 * @param  WP_REST_Request $request Request object.
 	 * @return mixed            Returns Extended Access userState  object.
 	 */
-	public static function api_register_subscription( $request ) {
-		try {
-			// TODO (@AnuragVasanwala): Remove getting post-id and user-id from headers.
-			$post_id       = $request->get_header( 'X-WP-Post-ID' );
-			$existing_user = get_user_by( 'email', $request->get_header( 'X-WP-User-Email' ) );
-			
-			if ( $existing_user ) {
-				$user_id = $existing_user->ID;
-
-				if ( isset( $post_id ) ) {
-					// Cookie name, Made from post-id and user-id.
-					$cookie_name    = 'newspack_' . md5( $post_id . $user_id );
-					$home_url_parts = wp_parse_url( home_url() );
-
-					// phpcs:disable WordPressVIPMinimum.Functions.RestrictedFunctions.cookies_setcookie
-					setcookie( $cookie_name, 'true', time() + 31556926, '/', $home_url_parts['host'], is_ssl(), false );
-					return rest_ensure_response( array( 'data' => 'ok' ) );
-				}
-			}
-			return rest_ensure_response( array( 'data' => 'NO_USER_OR_POST' ) );
-		} catch ( Error $er ) {
-			return rest_ensure_response( array( 'data' => $er ) );
-		}
-	}
-
-	/**
-	 * Handles Google Extended Access registration route.
-	 *
-	 * @param  WP_REST_Request $request Request object.
-	 * @return mixed            Returns Extended Access userState  object.
-	 */
-	public static function api_google_login_register( $request ) {
+	public static function api_login_or_register_google_account( $request ) {
 
 		// Decode JWT.
 		$token = json_decode( base64_decode( str_replace( '_', '/', str_replace( '-', '+', explode( '.', $request->get_body() )[1] ) ) ) );
@@ -176,12 +155,43 @@ class REST_Endpoint {
 	}
 
 	/**
+	 * Handles Google Extended Access registration route.
+	 *
+	 * @param  WP_REST_Request $request Request object.
+	 * @return mixed            Returns Extended Access userState  object.
+	 */
+	public static function api_register_subscription( $request ) {
+		try {
+			// TODO (@AnuragVasanwala): Remove getting post-id and user-id from headers.
+			$post_id       = $request->get_header( 'X-WP-Post-ID' );
+			$existing_user = get_user_by( 'email', $request->get_header( 'X-WP-User-Email' ) );
+			
+			if ( $existing_user ) {
+				$user_id = $existing_user->ID;
+
+				if ( isset( $post_id ) ) {
+					// Cookie name, Made from post-id and user-id.
+					$cookie_name    = 'newspack_' . md5( $post_id . $user_id );
+					$home_url_parts = wp_parse_url( home_url() );
+
+					// phpcs:disable WordPressVIPMinimum.Functions.RestrictedFunctions.cookies_setcookie
+					setcookie( $cookie_name, 'true', time() + 31556926, '/', $home_url_parts['host'], is_ssl(), false );
+					return rest_ensure_response( array( 'data' => 'ok' ) );
+				}
+			}
+			return rest_ensure_response( array( 'data' => 'NO_USER_OR_POST' ) );
+		} catch ( Error $er ) {
+			return rest_ensure_response( array( 'data' => $er ) );
+		}
+	}
+
+	/**
 	 * Handles Google Extended Access login status route.
 	 *
 	 * @param  WP_REST_Request $request Request object.
 	 * @return mixed            Returns Extended Access userState object.
 	 */
-	public static function api_login_status( $request ) {
+	public static function api_verify_user( $request ) {
 		$logged_in_user = wp_get_current_user();
 
 		if ( $logged_in_user ) {

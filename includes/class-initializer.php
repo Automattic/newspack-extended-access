@@ -2,10 +2,10 @@
 /**
  * Newspack Extended Access plugin initialization.
  *
- * @package Newspack\Extended_Access
+ * @package Newspack\ExtendedAccess
  */
 
-namespace Newspack\Extended_Access;
+namespace Newspack\ExtendedAccess;
 
 /**
  * Class to handle the plugin initialization
@@ -23,22 +23,18 @@ class Initializer {
 	 * Runs the initialization.
 	 */
 	public static function init() {
-		// TODO (@AnuragVasanwala): Please remove try...catch. It is only enabled for testing purpose.
-		try {
-			add_action( 'admin_notices', [ __CLASS__, 'show_admin_notice__error' ] );
+		// Setup Hooks & Filters.
+		add_action( 'admin_notices', [ __CLASS__, 'show_admin_notice__error' ] );
 
-			/** Initialize non-dependency classes. */
-			WooCommerce::init();
-			WC_Settings_Memberships_Option_Tab::init();
+		// Initialize non-dependency classes.
+		WooCommerce::init();
+		WC_Settings_Memberships_Option_Tab::init();
 
-			/** Initialize classes only when all dependencies are met. */
-			if ( self::has_valid_dependencies() ) {
-				REST_Endpoint::init();
-				Google_ExtendedAccess::init();
-				Single_Post_Subscription::init();
-			}
-		} catch ( Error $er ) {
-			echo esc_html( $er );
+		// Initialize classes only when all dependencies are met.
+		if ( self::has_valid_dependencies() ) {
+			REST_Controller::init();
+			Google_ExtendedAccess::init();
+			SinglePost_Subscription::init();
 		}
 	}
 		

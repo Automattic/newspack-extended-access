@@ -5,7 +5,7 @@
  * @package Newspack\Tests
  */
 
-use Newspack\Extended_Access;
+use Newspack\ExtendedAccess;
 
 require_once dirname( __FILE__ ) . '/utils/class-plugin-manager.php';
 
@@ -21,7 +21,7 @@ class Newspack_Test_Google_ExtendedAccess extends WP_UnitTestCase {
 		parent::set_up();
 
 		// Initialize .
-		\Newspack\Extended_Access\Google_ExtendedAccess::init();
+		\Newspack\ExtendedAccess\Google_ExtendedAccess::init();
 		
 		// Sample Post(s).
 		$this->post      = get_post( $this->factory->post->create() );

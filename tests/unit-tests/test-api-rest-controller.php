@@ -5,7 +5,7 @@
  * @package Newspack\Tests
  */
 
-use Newspack\Extended_Access;
+use Newspack\ExtendedAccess;
 
 require_once dirname( __FILE__ ) . '/utils/class-plugin-manager.php';
 /**
@@ -23,15 +23,13 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	 * Setup for the tests.
 	 */
 	public static function set_up_before_class() {      
-		/**
-		 * Install and activate Dependency Plugins
-		 */
+		// Install and activate Dependency Plugins.
 		$newspack_rel_latest = 'https://github.com/Automattic/newspack-plugin/releases/latest/download/newspack-plugin.zip';
 		echo esc_html( 'Installing Newspack...' . PHP_EOL );
-		\Newspack\Extended_Access\Plugin_Manager::install( $newspack_rel_latest );
+		\Newspack\ExtendedAccess\Plugin_Manager::install( $newspack_rel_latest );
 
 		echo esc_html( 'Activating Newspack...' . PHP_EOL );
-		\Newspack\Extended_Access\Plugin_Manager::activate( 'newspack-plugin' );
+		\Newspack\ExtendedAccess\Plugin_Manager::activate( 'newspack-plugin' );
 
 		echo esc_html( 'Initializing Newspack for test...' . PHP_EOL );
 		\Newspack\Data_Events\Webhooks::init();
@@ -52,7 +50,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$this->server   = $wp_rest_server;
 
 		// Initialize Extended Access REST Controller.
-		\Newspack\Extended_Access\REST_Endpoint::init();
+		\Newspack\ExtendedAccess\REST_Controller::init();
 		do_action( 'rest_api_init' );
 
 		// Create sample post(s) required for test(s).

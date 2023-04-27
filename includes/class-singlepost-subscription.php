@@ -3,15 +3,15 @@
  * Registers required scripts for SwG implementation
  * specific to Newspack functionality.
  *
- * @package Newspack\Extended_Access
+ * @package Newspack\ExtendedAccess
  */
 
-namespace Newspack\Extended_Access;
+namespace Newspack\ExtendedAccess;
 
 /**
  * Defines functionality to bypass paywall restriction for single post for single user.
  */
-class Single_Post_Subscription {
+class SinglePost_Subscription {
 
 	/**
 	 * Set up hooks and filters.
