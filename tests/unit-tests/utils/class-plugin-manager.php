@@ -811,17 +811,17 @@ class Plugin_Manager {
 
 		$download = $zip_path;
 		// if ( is_wp_error( $download ) ) {
-		// 	return new WP_Error( 'newspack_plugin_failed_install', $download->get_error_message() );
+		// return new WP_Error( 'newspack_plugin_failed_install', $download->get_error_message() );
 		// }
 
 		// // GitHub appends random strings to the end of its downloads.
 		// // If we asked for foo.zip, make sure the downloaded file is called foo.tmp.
 		// if ( stripos( $plugin_url, 'github' ) ) {
-		// 	$plugin_url_parts  = explode( '/', $plugin_url );
-		// 	$desired_file_name = str_replace( '.zip', '', end( $plugin_url_parts ) );
-		// 	$new_file_name     = preg_replace( '#(' . $desired_file_name . '.*).tmp#', $desired_file_name . '.tmp', $download );
-		// 	copy( $download, $new_file_name ); // phpcs:ignore
-		// 	$download = $new_file_name;
+		// $plugin_url_parts  = explode( '/', $plugin_url );
+		// $desired_file_name = str_replace( '.zip', '', end( $plugin_url_parts ) );
+		// $new_file_name     = preg_replace( '#(' . $desired_file_name . '.*).tmp#', $desired_file_name . '.tmp', $download );
+		// copy( $download, $new_file_name ); // phpcs:ignore
+		// $download = $new_file_name;
 		// }
 
 		$working_dir = $upgrader->unpack_package( $download );

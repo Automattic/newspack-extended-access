@@ -54,7 +54,7 @@ class REST_Endpoint {
 			self::NAMESPACE,
 			'/subscription/register',
 			array(
-				'methods'             =>WP_REST_Server::READABLE,
+				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'api_register_subscription' ),
 				'permission_callback' => '__return_true',
 			)
@@ -133,7 +133,7 @@ class REST_Endpoint {
 				$user_id = $result->ID;
 			}
 			$current_reader = Newspack\Reader_Activation::set_current_reader( $user_id );
-			$existing_user = get_user_by( 'id', $user_id );
+			$existing_user  = get_user_by( 'id', $user_id );
 
 			add_user_meta( $result, 'extended_access_sub', $token->sub );
 
