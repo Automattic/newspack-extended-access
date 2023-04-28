@@ -79,8 +79,8 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$routes = $this->server->get_routes();
 		$this->assertArrayHasKey( $this->api_namespace, $routes, '' );
 		$this->assertArrayHasKey( $this->api_namespace . '/login/status', $routes );
-		$this->assertArrayHasKey( $this->api_namespace . '/login/google', $routes );
-		$this->assertArrayHasKey( $this->api_namespace . '/subscription/register', $routes );
+		$this->assertArrayHasKey( $this->api_namespace . '/google/register', $routes );
+		$this->assertArrayHasKey( $this->api_namespace . '/unlock-article', $routes );
 	}
 
 	/**
@@ -141,7 +141,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		wp_set_current_user( 0 );
 
 		// Prepare and send Request.
-		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/login/google' );
+		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/google/register' );
 		$request->set_header( 'Content-Type', 'text/plain' );
 		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
@@ -163,7 +163,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		wp_set_current_user( 0 );
 
 		// Prepare and send Request.
-		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/login/google' );
+		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/google/register' );
 		$request->set_header( 'Content-Type', 'text/plain' );
 		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
@@ -185,7 +185,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		wp_set_current_user( 0 );
 
 		// Prepare and send Request.
-		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/login/google' );
+		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/google/register' );
 		$request->set_header( 'Content-Type', 'text/plain' );
 		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
@@ -207,7 +207,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		wp_set_current_user( 0 );
 
 		// Prepare and send Request.
-		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/subscription/register' );
+		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/unlock-article' );
 		$request->set_header( 'Content-Type', 'text/plain' );
 		$request->set_header( 'X-WP-User-Email', 'non.existing.user@test.com' );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
@@ -215,7 +215,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
-		$this->assertEquals( 'NO_USER_OR_POST', $response_data['data'] );
+		$this->assertEquals( 'NO_USER_OR_POST', $response_data['status'] );
 	}
 
 }
