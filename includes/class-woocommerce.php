@@ -2,10 +2,10 @@
 /**
  * Adjustments and special handling related to WooCommerce.
  *
- * @package newspack-extended-access
+ * @package Newspack\ExtendedAccess
  */
 
-namespace Newspack_Extended_Access;
+namespace Newspack\ExtendedAccess;
 
 /**
  * Adjustments and special handling related to WooCommerce.
