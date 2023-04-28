@@ -22,7 +22,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	/**
 	 * Setup for the tests.
 	 */
-	public static function set_up_before_class() {      
+	public static function set_up_before_class() {
 		// Install and activate Dependency Plugins.
 		$newspack_rel_latest = 'https://github.com/Automattic/newspack-plugin/releases/latest/download/newspack-plugin.zip';
 		echo esc_html( 'Installing Newspack...' . PHP_EOL );
@@ -41,9 +41,9 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	/**
 	 * Setup for the tests.
 	 */
-	public function set_up() {      
+	public function set_up() {
 		parent::set_up();
-		
+
 		// Setup Server to mock requests.
 		global $wp_rest_server;
 		$wp_rest_server = new WP_REST_Server();
@@ -58,14 +58,14 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 
 		// Create sample user(s) required for test(s).
 		$this->subscriber = $this->factory->user->create(
-			[
+			array(
 				'role'  => 'subscriber',
 				'email' => 'reader@test.com',
-			] 
+			)
 		);
 		$this->reader     = \Newspack\Reader_Activation::register_reader( 'reader@test.com', 'Reader' );
 		wp_logout();
-		
+
 		// Create a cookie for testing purpose.
 		$cookie_name = 'newspack_' . md5( $this->post . $this->reader );
         // phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
@@ -198,7 +198,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$this->assertTrue( $response_data['granted'], 'Newly registered subscriber should be granted.' );
 		$this->assertEquals( 'METERING', $response_data['grantReason'] );
 	}
-	
+
 	/**
 	 * Ensures non existing user cannot have cookie created at their end.
 	 */
@@ -211,11 +211,11 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$request->set_header( 'Content-Type', 'text/plain' );
 		$request->set_header( 'X-WP-User-Email', 'non.existing.user@test.com' );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
-		
+
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
 		$this->assertEquals( 'NO_USER_OR_POST', $response_data['data'] );
 	}
-	
+
 }

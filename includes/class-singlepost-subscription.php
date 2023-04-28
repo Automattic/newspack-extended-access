@@ -26,7 +26,7 @@ class SinglePost_Subscription {
 	}
 
 	/**
-	 * Removes actions added by woocommerce membership to restrict access to post content.
+	 * Manages actions added by woocommerce membership to restrict access to post content.
 	 */
 	public static function manage_paywall_restriction() {
 		$post_id = get_the_ID();
@@ -40,7 +40,7 @@ class SinglePost_Subscription {
 
 		// Checks if cookie is set, grants access only if cookie is set.
 		if ( isset( $_COOKIE[ $cookie_name ] ) ) {
-			// Remove restriction for the post ($post_id) for user ($user_id).
+			// Remove restriction for the post (post_id) for user (user_id).
 			remove_action( 'wp', array( $membership_instance, 'handle_restriction_modes' ) );
 			remove_filter( 'the_posts', array( $membership_instance, 'exclude_restricted_content_comments' ), PHP_INT_MAX, 2 );
 			remove_filter( 'pre_get_comments', array( $membership_instance, 'exclude_restricted_comments' ), PHP_INT_MAX );
@@ -50,7 +50,7 @@ class SinglePost_Subscription {
 			remove_filter( 'get_terms_args', array( $membership_instance, 'handle_get_terms_args' ), PHP_INT_MAX, 2 );
 			remove_filter( 'terms_clauses', array( $membership_instance, 'handle_terms_clauses' ), PHP_INT_MAX );
 		} elseif ( ! has_filter( 'wp', array( $membership_instance, 'handle_restriction_modes' ) ) ) {
-			// Add restriction for the user ($user_id) if they are not present for the post($post_id).
+			// Add restriction for the user (user_id) if they are not present for the post(post_id).
 			add_action( 'wp', array( $membership_instance, 'handle_restriction_modes' ) );
 			add_filter( 'the_posts', array( $membership_instance, 'exclude_restricted_content_comments' ), PHP_INT_MAX, 2 );
 			add_filter( 'pre_get_comments', array( $membership_instance, 'exclude_restricted_comments' ), PHP_INT_MAX );

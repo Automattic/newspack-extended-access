@@ -20,11 +20,12 @@ if ( ! function_exists( 'get_plugins' ) || ! function_exists( 'is_plugin_active'
  */
 class DependencyChecker {
 
-	const WOOCOMMERCE_PLUGIN = 'woocommerce-memberships/woocommerce-memberships.php';
+	const WOOCOMMERCE_PLUGIN             = 'woocommerce/woocommerce.php';
+	const WOOCOMMERCE_MEMBERSHIPS_PLUGIN = 'woocommerce-memberships/woocommerce-memberships.php';
 
 	/**
 	 * Check if plugin is installed by getting all plugins from the plugins dir.
-	 * 
+	 *
 	 * @param  string $plugin_slug Slug of the plugin to check for.
 	 * @return bool
 	 */
@@ -47,26 +48,50 @@ class DependencyChecker {
 
 		return false;
 	}
-	
+
+	/**
+	 * Check whether 'WooCommerce Memberships' plugin is installed.
+	 *
+	 * @return bool Return true if plugin installed.
+	 */
+	public static function is_wc_installed(): bool {
+		if ( self::check_plugin_installed( self::WOOCOMMERCE_PLUGIN ) ) {
+			return true;
+		}
+		return false;
+	}
+
+	/**
+	 * Check whether 'WooCommerce Memberships' plugin is active.
+	 *
+	 * @return bool Return true if plugin active.
+	 */
+	public static function is_wc_active(): bool {
+		if ( self::check_plugin_active( self::WOOCOMMERCE_PLUGIN ) ) {
+			return true;
+		}
+		return false;
+	}
+
 	/**
 	 * Check whether 'WooCommerce Memberships' plugin is installed.
 	 *
 	 * @return bool Return true if plugin installed.
 	 */
 	public static function is_wc_memberships_installed(): bool {
-		if ( self::check_plugin_installed( self::WOOCOMMERCE_PLUGIN ) ) {
+		if ( self::check_plugin_installed( self::WOOCOMMERCE_MEMBERSHIPS_PLUGIN ) ) {
 			return true;
 		}
 		return false;
 	}
-	
+
 	/**
 	 * Check whether 'WooCommerce Memberships' plugin is active.
 	 *
 	 * @return bool Return true if plugin active.
 	 */
 	public static function is_wc_memberships_active(): bool {
-		if ( self::check_plugin_active( self::WOOCOMMERCE_PLUGIN ) ) {
+		if ( self::check_plugin_active( self::WOOCOMMERCE_MEMBERSHIPS_PLUGIN ) ) {
 			return true;
 		}
 		return false;

@@ -10,6 +10,8 @@ namespace Newspack\ExtendedAccess;
 
 use Newspack;
 
+define( 'NEWSPACK_SWG_SCRIPT_VERSION', '1.0' );
+
 /**
  * Registers required scripts for SwG implementation
  * specific to Newspack functionality.
@@ -34,7 +36,7 @@ class Google_ExtendedAccess {
 		if ( function_exists( 'wc_memberships_is_post_content_restricted' ) ) {
 			// Add 'isAccessibleForFree' schema for compatibility with Google Extended Access.
 			$flags = ( JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
-			
+
 			$url_parts = wp_parse_url( home_url() );
 			$domain    = $url_parts['host'];
 
@@ -73,13 +75,12 @@ class Google_ExtendedAccess {
 		// Add scripts only for `post` type.
 		if ( get_post_type() === 'post' ) { // Add slug in condition.
 			// Newspack Extended Access Script.
-			wp_register_script( 'newspack-swg', '/wp-content/plugins/newspack-extended-access/assets/js/newspack-swg.js', array(), '1.0', false );
+			$assets_path = plugins_url( '../assets/', __FILE__ );
+			wp_register_script( 'newspack-swg', $assets_path . 'js/newspack-swg.js', array(), NEWSPACK_SWG_SCRIPT_VERSION, false );
 			wp_enqueue_script( 'newspack-swg' );
 
-			$home_url_parts = wp_parse_url( home_url() );
-			
-			// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Already validated.
-			$allowed_referrers = [ $home_url_parts['host'] ];
+			$home_url_parts    = wp_parse_url( home_url() );
+			$allowed_referrers = array( $home_url_parts['host'] );
 
 			// Nonce for REST API.
 			wp_localize_script(

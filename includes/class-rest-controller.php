@@ -21,7 +21,7 @@ class REST_Controller {
 	 * Plugin route namespace.
 	 */
 	const NAMESPACE = 'newspack-extended-access/v1';
-	
+
 	/**
 	 * Endpoint constants.
 	 */
@@ -59,7 +59,7 @@ class REST_Controller {
 				'permission_callback' => '__return_true',
 			)
 		);
-		
+
 		register_rest_route(
 			self::NAMESPACE,
 			self::VERIFY_USER_ENDPOINT,
@@ -91,12 +91,12 @@ class REST_Controller {
 
 		$post_id = $request->get_header( 'X-WP-Post-ID' );
 		$user_id = false;
-		
+
 		if ( $existing_user ) {
 			$user_id = $existing_user->ID;
 			$result  = Newspack\Reader_Activation::set_current_reader( $existing_user->ID );
 			if ( is_wp_error( $result ) ) {
-				if ( in_array( [ 'administrator', 'editor' ], (array) $existing_user->roles ) ) {
+				if ( in_array( array( 'administrator', 'editor' ), (array) $existing_user->roles ) ) {
 					// Do not grand user with role either 'Admin' or 'Editor' to login via SwG.
 					$user_id = -1;
 				}
@@ -104,7 +104,8 @@ class REST_Controller {
 				update_user_meta( $existing_user->ID, 'extended_access_sub', $token->sub );
 			}
 		} else {
-			add_filter( 'newspack_reader_activation_enabled', array( __CLASS__, 'bypass_newspack_reader_activation_enabled' ) );
+			// Enables registering through SWG even if it is disabled.
+			add_filter( 'newspack_reader_activation_enabled', '__return_true' );
 			$result = Newspack\Reader_Activation::register_reader( $email, '', true, array() );
 
 			if ( is_numeric( $result ) ) {
@@ -117,8 +118,8 @@ class REST_Controller {
 
 			add_user_meta( $result, 'extended_access_sub', $token->sub );
 
-			remove_filter( 'newspack_reader_activation_enabled', array( __CLASS__, 'bypass_newspack_reader_activation_enabled' ) );
-		
+			remove_filter( 'newspack_reader_activation_enabled', '__return_true' );
+
 			// At this point the user will be logged in.
 		}
 
@@ -136,7 +137,7 @@ class REST_Controller {
 					'grantReason'           => 'METERING',
 				)
 			);
-			$response->set_headers( [ 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ] );
+			$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
 			return $response;
 		} else {
 			$granted  = false;
@@ -149,7 +150,7 @@ class REST_Controller {
 					'grantReason'           => 'METERING',
 				)
 			);
-			$response->set_headers( [ 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ] );
+			$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
 			return $response;
 		}
 	}
@@ -165,7 +166,7 @@ class REST_Controller {
 			// TODO (@AnuragVasanwala): Remove getting post-id and user-id from headers.
 			$post_id       = $request->get_header( 'X-WP-Post-ID' );
 			$existing_user = get_user_by( 'email', $request->get_header( 'X-WP-User-Email' ) );
-			
+
 			if ( $existing_user ) {
 				$user_id = $existing_user->ID;
 
@@ -210,7 +211,7 @@ class REST_Controller {
 							'reason'  => $result,
 						)
 					);
-					$response->set_headers( [ 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ] );
+					$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
 					return $response;
 				}
 			} else {
@@ -220,7 +221,7 @@ class REST_Controller {
 						'reason'  => 'USER_DOES_NOT_EXISTS',
 					)
 				);
-				$response->set_headers( [ 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ] );
+				$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
 				return $response;
 			}
 
@@ -247,7 +248,7 @@ class REST_Controller {
 							'grantReason'           => 'METERING',
 						)
 					);
-					$response->set_headers( [ 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ] );
+					$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
 					return $response;
 				} else {
 					$response = rest_ensure_response(
@@ -258,7 +259,7 @@ class REST_Controller {
 							'granted'               => $granted,
 						)
 					);
-					$response->set_headers( [ 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ] );
+					$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
 					return $response;
 				}
 			} else {
@@ -267,7 +268,7 @@ class REST_Controller {
 						'granted' => false,
 					)
 				);
-				$response->set_headers( [ 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ] );
+				$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
 				return $response;
 			}
 		} else {
@@ -277,19 +278,8 @@ class REST_Controller {
 					'reason'  => 'NO_LOGGEND_IN_USER',
 				)
 			);
-			$response->set_headers( [ 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ] );
+			$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
 			return $response;
 		}
-	}
-
-
-	/**
-	 * Enables registering through SWG even if it is disabled.
-	 *
-	 * @param  boolean $is_enabled Existing value of newspack_reader_activation_enabled option.
-	 * @return boolean Returns always true for SWG.
-	 */
-	public static function bypass_newspack_reader_activation_enabled( $is_enabled ) {
-		return true;
 	}
 }

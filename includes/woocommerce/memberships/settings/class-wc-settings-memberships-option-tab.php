@@ -50,9 +50,9 @@ class WC_Settings_Memberships_Option_Tab {
 
 			// Prepare server protocol and domain name.
 			$home_url_parts = wp_parse_url( home_url() );
-			
+
 			// phpcs:disable WordPress.Security.ValidatedSanitizedInput.InputNotValidated -- Already validated.
-			$allowed_referrers = $home_url_parts['scheme'] . '://' . $home_url_parts['host'];
+			$allowed_referrers = esc_url( $home_url_parts['scheme'] . '://' . $home_url_parts['host'] );
 
 			// Prepare title and input-box description.
 			$title_desc = '<p>An integration for utilizing Google Extended Access.</p>';

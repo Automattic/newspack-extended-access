@@ -19,13 +19,13 @@ class Plugin_Manager {
 	 *
 	 * @var array
 	 */
-	public static $required_plugins = [
+	public static $required_plugins = array(
 		'jetpack',
 		'pwa',
 		'google-site-kit',
 		'newspack-blocks',
 		'wp-parsely',
-	];
+	);
 
 	/**
 	 * Get info about all the managed plugins and their status.
@@ -35,24 +35,24 @@ class Plugin_Manager {
 	 * @return array of plugins info.
 	 */
 	public static function get_managed_plugins() {
-		$managed_plugins = [
-			'akismet'                       => [
+		$managed_plugins = array(
+			'akismet'                       => array(
 				'Name'        => esc_html__( 'Akismet Anti-Spam', 'newspack' ),
 				'Description' => esc_html__( 'Used by millions, Akismet is quite possibly the best way in the world to protect your blog from spam. It keeps your site protected even while you sleep.', 'newspack' ),
 				'Author'      => esc_html__( 'Automattic', 'newspack' ),
 				'AuthorURI'   => esc_url( 'https://automattic.com/wordpress-plugins/' ),
 				'PluginURI'   => esc_url( 'https://akismet.com/' ),
 				'Download'    => 'wporg',
-			],
-			'co-authors-plus'               => [
+			),
+			'co-authors-plus'               => array(
 				'Name'        => esc_html__( 'Co-Authors Plus', 'newspack' ),
 				'Description' => esc_html__( 'Allows multiple authors and guest authors to be assigned to a post.', 'newspack' ),
 				'Author'      => esc_html__( 'Mohammad Jangda, Daniel Bachhuber, Automattic, Weston Ruter', 'newspack' ),
 				'AuthorURI'   => esc_url( 'https://wordpress.org/extend/plugins/co-authors-plus/' ),
 				'PluginURI'   => esc_url( 'https://wordpress.org/extend/plugins/co-authors-plus/' ),
 				'Download'    => 'wporg',
-			],
-			'google-site-kit'               => [
+			),
+			'google-site-kit'               => array(
 				'Name'        => esc_html__( 'Google Site Kit', 'newspack' ),
 				'Description' => esc_html__( 'Site Kit is is a one-stop solution for WordPress users to use everything Google has to offer to make them successful on the web.', 'newspack' ),
 				'Author'      => esc_html__( 'Google', 'newspack' ),
@@ -60,19 +60,19 @@ class Plugin_Manager {
 				'PluginURI'   => esc_url( 'https://sitekit.withgoogle.com/' ),
 				'Download'    => 'wporg',
 				'EditPath'    => 'admin.php?page=googlesitekit-splash',
-				'Configurer'  => [
+				'Configurer'  => array(
 					'filename'   => 'class-site-kit-configuration-manager.php',
 					'class_name' => 'Site_Kit_Configuration_Manager',
-				],
-			],
-			'gravityforms'                  => [
+				),
+			),
+			'gravityforms'                  => array(
 				'Name'        => esc_html__( 'Gravity Forms', 'newspack' ),
 				'Description' => esc_html__( 'Create custom web forms to capture leads, collect payments, automate your workflows, and build your business online.', 'newspack' ),
 				'Author'      => esc_html__( 'Rocketgenius', 'newspack' ),
 				'PluginURI'   => esc_url( 'https://www.gravityforms.com/' ),
 				'AuthorURI'   => esc_url( 'https://rocketgenius.com/' ),
-			],
-			'jetpack'                       => [
+			),
+			'jetpack'                       => array(
 				'Name'        => __( 'Jetpack', 'newspack' ),
 				'Description' => esc_html__( 'Bring the power of the WordPress.com cloud to your self-hosted WordPress. Jetpack enables you to connect your blog to a WordPress.com account to use the powerful features normally only available to WordPress.com users.', 'newspack' ),
 				'Author'      => esc_html__( 'Automattic', 'newspack' ),
@@ -80,40 +80,40 @@ class Plugin_Manager {
 				'AuthorURI'   => esc_url( 'https://automattic.com/' ),
 				'Download'    => 'wporg',
 				'EditPath'    => 'admin.php?page=jetpack',
-			],
-			'mailchimp-for-woocommerce'     => [
+			),
+			'mailchimp-for-woocommerce'     => array(
 				'Name'        => 'Mailchimp for WooCommerce',
 				'Description' => esc_html__( 'Connects WooCommerce to Mailchimp to sync your store data, send targeted campaigns to your customers, and sell more stuff.', 'newspack' ),
 				'Author'      => esc_html__( 'Mailchimp', 'newspack' ),
 				'AuthorURI'   => esc_url( 'https://mailchimp.com' ),
 				'PluginURI'   => esc_url( 'https://mailchimp.com/connect-your-store/' ),
 				'Download'    => 'wporg',
-			],
-			'mailchimp-for-wp'              => [
+			),
+			'mailchimp-for-wp'              => array(
 				'Name'        => esc_html__( 'MC4WP: Mailchimp for WordPress', 'newspack' ),
 				'Description' => esc_html__( 'Mailchimp for WordPress by ibericode. Adds various highly effective sign-up methods to your site.', 'newspack' ),
 				'Author'      => esc_html__( 'ibericode', 'newspack' ),
 				'PluginURI'   => esc_url( 'https://mc4wp.com' ),
 				'AuthorURI'   => esc_url( 'https://ibericode.com' ),
 				'Download'    => 'wporg',
-			],
-			'newspack-ads'                  => [
+			),
+			'newspack-ads'                  => array(
 				'Name'        => esc_html__( 'Newspack Ads', 'newspack' ),
 				'Description' => esc_html__( 'Ads integration.', 'newspack' ),
 				'Author'      => esc_html__( 'Automattic', 'newspack' ),
 				'PluginURI'   => esc_url( 'https://newspack.com' ),
 				'AuthorURI'   => esc_url( 'https://automattic.com' ),
 				'Download'    => 'https://github.com/Automattic/newspack-ads/releases/latest/download/newspack-ads.zip',
-			],
-			'newspack-blocks'               => [
+			),
+			'newspack-blocks'               => array(
 				'Name'        => esc_html__( 'Newspack Blocks', 'newspack' ),
 				'Description' => esc_html__( 'A collection of blocks for news publishers.', 'newspack' ),
 				'Author'      => esc_html__( 'Automattic', 'newspack' ),
 				'PluginURI'   => esc_url( 'https://newspack.com' ),
 				'AuthorURI'   => esc_url( 'https://automattic.com' ),
 				'Download'    => 'https://github.com/Automattic/newspack-blocks/releases/latest/download/newspack-blocks.zip',
-			],
-			'newspack-content-converter'    => [
+			),
+			'newspack-content-converter'    => array(
 				'Name'        => esc_html__( 'Newspack Content Converter', 'newspack' ),
 				'Description' => esc_html__( 'Batch conversion of Classic->Gutenberg post conversion.', 'newspack' ),
 				'Author'      => esc_html__( 'Automattic', 'newspack' ),
@@ -121,53 +121,53 @@ class Plugin_Manager {
 				'AuthorURI'   => esc_url( 'https://automattic.com' ),
 				'Download'    => 'https://github.com/Automattic/newspack-content-converter/releases/latest/download/newspack-content-converter.zip',
 				'Quiet'       => true,
-			],
-			'newspack-newsletters'          => [
+			),
+			'newspack-newsletters'          => array(
 				'Name'        => esc_html__( 'Newspack Newsletters', 'newspack' ),
 				'Description' => esc_html__( 'Newsletter authoring using the Gutenberg editor.', 'newspack' ),
 				'Author'      => esc_html__( 'Automattic', 'newspack' ),
 				'PluginURI'   => esc_url( 'https://newspack.com' ),
 				'AuthorURI'   => esc_url( 'https://automattic.com' ),
 				'Download'    => 'https://github.com/Automattic/newspack-newsletters/releases/latest/download/newspack-newsletters.zip',
-			],
-			'newspack-popups'               => [
+			),
+			'newspack-popups'               => array(
 				'Name'        => esc_html__( 'Newspack Campaigns', 'newspack' ),
 				'Description' => esc_html__( 'AMP-compatible overlay and inline Campaigns.', 'newspack' ),
 				'Author'      => esc_html__( 'Automattic', 'newspack' ),
 				'PluginURI'   => esc_url( 'https://newspack.com' ),
 				'AuthorURI'   => esc_url( 'https://automattic.com' ),
 				'Download'    => 'https://github.com/Automattic/newspack-popups/releases/latest/download/newspack-popups.zip',
-			],
-			'newspack-sponsors'             => [
+			),
+			'newspack-sponsors'             => array(
 				'Name'        => esc_html__( 'Newspack Sponsors', 'newspack' ),
 				'Description' => esc_html__( 'Sponsored and underwritten content for Newspack sites.', 'newspack' ),
 				'Author'      => esc_html__( 'Automattic', 'newspack' ),
 				'PluginURI'   => esc_url( 'https://newspack.com' ),
 				'AuthorURI'   => esc_url( 'https://automattic.com' ),
 				'Download'    => 'https://github.com/Automattic/newspack-sponsors/releases/latest/download/newspack-sponsors.zip',
-			],
-			'newspack-listings'             => [
+			),
+			'newspack-listings'             => array(
 				'Name'        => esc_html__( 'Newspack Listings', 'newspack' ),
 				'Description' => esc_html__( 'Create reusable content in list form using the Gutenberg editor.', 'newspack' ),
 				'Author'      => esc_html__( 'Automattic', 'newspack' ),
 				'PluginURI'   => esc_url( 'https://newspack.com' ),
 				'AuthorURI'   => esc_url( 'https://automattic.com' ),
 				'Download'    => 'https://github.com/Automattic/newspack-listings/releases/latest/download/newspack-listings.zip',
-			],
-			'newspack-theme'                => [
+			),
+			'newspack-theme'                => array(
 				'Name'        => esc_html__( 'Newspack Theme', 'newspack' ),
 				'Description' => esc_html__( 'The Newspack theme.', 'newspack' ),
 				'Author'      => esc_html__( 'Newspack', 'newspack' ),
-			],
-			'wp-parsely'                    => [
+			),
+			'wp-parsely'                    => array(
 				'Name'        => esc_html__( 'Parse.ly', 'newspack' ),
 				'Description' => esc_html__( 'This plugin makes it a snap to add Parse.ly tracking code to your WordPress blog.', 'newspack' ),
 				'Author'      => esc_html__( 'Mike Sukmanowsky ( mike@parsely.com )', 'newspack' ),
 				'PluginURI'   => esc_url( 'https://www.parsely.com/' ),
 				'AuthorURI'   => esc_url( 'https://www.parsely.com/' ),
 				'Download'    => 'wporg',
-			],
-			'password-protected'            => [
+			),
+			'password-protected'            => array(
 				'Name'        => esc_html__( 'Password Protected', 'newspack' ),
 				'Description' => esc_html__( 'A very simple way to quickly password protect your WordPress site with a single password. Please note: This plugin does not restrict access to uploaded files and images and does not work with some caching setups.', 'newspack' ),
 				'Author'      => esc_html__( 'Ben Huson', 'newspack' ),
@@ -175,8 +175,8 @@ class Plugin_Manager {
 				'AuthorURI'   => esc_url( 'https://github.com/benhuson/password-protected/' ),
 				'Download'    => 'wporg',
 				'EditPath'    => 'options-general.php?page=password-protected',
-			],
-			'publish-to-apple-news'         => [
+			),
+			'publish-to-apple-news'         => array(
 				'Name'        => esc_html__( 'Publish to Apple News', 'newspack' ),
 				'Description' => esc_html__( 'Export and synchronize posts to Apple format', 'newspack' ),
 				'Author'      => esc_html__( 'Alley Interactive', 'newspack' ),
@@ -184,35 +184,35 @@ class Plugin_Manager {
 				'PluginURI'   => esc_url( 'https://github.com/alleyinteractive/apple-news' ),
 				'Download'    => 'wporg',
 				'EditPath'    => 'admin.php?page=apple_news_index',
-				'Configurer'  => [
+				'Configurer'  => array(
 					'filename'   => 'class-publish-to-apple-news-configuration-manager.php',
 					'class_name' => 'Publish_To_Apple_News_Configuration_Manager',
-				],
-			],
-			'pwa'                           => [
+				),
+			),
+			'pwa'                           => array(
 				'Name'        => esc_html__( 'PWA', 'newspack' ),
 				'Description' => esc_html__( 'Feature plugin to bring Progressive Web App (PWA) capabilities to Core.', 'newspack' ),
 				'Author'      => esc_html__( 'PWA Plugin Contributors', 'newspack' ),
 				'AuthorURI'   => esc_url( 'https://github.com/xwp/pwa-wp/graphs/contributors' ),
 				'PluginURI'   => esc_url( 'https://github.com/xwp/pwa-wp' ),
 				'Download'    => 'wporg',
-			],
-			'recaptcha-for-woocommerce'     => [
+			),
+			'recaptcha-for-woocommerce'     => array(
 				'Name'        => esc_html__( 'reCaptcha for WooCommerce', 'newspack' ),
 				'Description' => esc_html__( 'Protect your eCommerce store from malicious and automated attacks by using reCaptcha for WooCommerce.', 'newspack' ),
 				'Author'      => esc_html__( 'I13 Web Solution', 'newspack' ),
 				'PluginURI'   => esc_url( 'https://woocommerce.com/products/recaptcha-for-woocommerce/' ),
 				'AuthorURI'   => esc_url( 'https://woocommerce.com/vendor/i13-web-solution/' ),
-			],
-			'redirection'                   => [
+			),
+			'redirection'                   => array(
 				'Name'        => esc_html__( 'Redirection', 'newspack' ),
 				'Description' => esc_html__( 'Manage all your 301 redirects and monitor 404 errors.', 'newspack' ),
 				'Author'      => esc_html__( 'John Godley', 'newspack' ),
 				'AuthorURI'   => esc_url( 'https://redirection.me/' ),
 				'PluginURI'   => esc_url( 'https://redirection.me/' ),
 				'Download'    => 'wporg',
-			],
-			'woocommerce'                   => [
+			),
+			'woocommerce'                   => array(
 				'Name'        => esc_html__( 'WooCommerce', 'newspack' ),
 				'Description' => esc_html__( 'An eCommerce toolkit that helps you sell anything. Beautifully.', 'newspack' ),
 				'Author'      => esc_html__( 'WordPress.com VIP, XWP, Google, and contributors', 'newspack' ),
@@ -220,8 +220,8 @@ class Plugin_Manager {
 				'AuthorURI'   => esc_url( 'https://woocommerce.com' ),
 				'Download'    => 'wporg',
 				'EditPath'    => 'admin.php?page=wc-settings',
-			],
-			'woocommerce-gateway-stripe'    => [
+			),
+			'woocommerce-gateway-stripe'    => array(
 				'Name'        => esc_html__( 'WooCommerce Stripe Gateway', 'newspack' ),
 				'Description' => esc_html__( 'Take credit card payments on your store using Stripe.', 'newspack' ),
 				'Author'      => esc_html__( 'WooCommerce', 'newspack' ),
@@ -229,93 +229,93 @@ class Plugin_Manager {
 				'AuthorURI'   => esc_url( 'https://woocommerce.com/' ),
 				'Download'    => 'wporg',
 				'EditPath'    => 'admin.php?page=wc-settings&tab=checkout&section=stripe',
-			],
-			'woocommerce-name-your-price'   => [
+			),
+			'woocommerce-name-your-price'   => array(
 				'Name'        => esc_html__( 'WooCommerce Name Your Price', 'newspack' ),
 				'Description' => esc_html__( 'WooCommerce Name Your Price allows customers to set their own price for products or donations.', 'newspack' ),
 				'Author'      => esc_html__( 'Kathy Darling', 'newspack' ),
 				'PluginURI'   => esc_url( 'https://www.woocommerce.com/products/name-your-price/' ),
 				'AuthorURI'   => esc_url( 'https://kathyisawesome.com' ),
-			],
-			'woocommerce-subscriptions'     => [
+			),
+			'woocommerce-subscriptions'     => array(
 				'Name'        => esc_html__( 'WooCommerce Subscriptions', 'newspack' ),
 				'Description' => esc_html__( 'Sell products and services with recurring payments in your WooCommerce Store.', 'newspack' ),
 				'Author'      => esc_html__( 'WooCommerce', 'newspack' ),
 				'PluginURI'   => esc_url( 'https://woocommerce.com/products/woocommerce-subscriptions/' ),
 				'AuthorURI'   => esc_url( 'https://woocommerce.com/' ),
-			],
-			'wordpress-seo'                 => [
+			),
+			'wordpress-seo'                 => array(
 				'Name'        => esc_html__( 'Yoast SEO', 'newspack' ),
 				'Description' => esc_html__( 'The first true all-in-one SEO solution for WordPress, including on-page content analysis, XML sitemaps and much more.', 'newspack' ),
 				'Author'      => esc_html__( 'Team Yoast', 'newspack' ),
 				'AuthorURI'   => esc_url( 'https://yoa.st/1uk' ),
 				'Download'    => 'wporg',
 				'EditPath'    => 'admin.php?page=wpseo_dashboard',
-			],
-			'wordpress-settings-discussion' => [
+			),
+			'wordpress-settings-discussion' => array(
 				'Name'     => esc_html__( 'Wordpress Commenting', 'newspack' ),
 				'WPCore'   => true,
 				'EditPath' => 'options-discussion.php',
-			],
-			'wp-gdpr-cookie-notice'         => [
+			),
+			'wp-gdpr-cookie-notice'         => array(
 				'Name'        => esc_html__( 'WP GDPR Cookie Notice', 'newspack' ),
 				'Description' => esc_html__( 'Simple performant cookie consent notice that supports AMP, granular cookie control and live preview customization.', 'newspack' ),
 				'Author'      => esc_html__( 'Felix Arntz', 'newspack' ),
 				'AuthorURI'   => esc_url( 'https://felix-arntz.me/' ),
 				'PluginURI'   => esc_url( 'https://wordpress.org/plugins/wp-gdpr-cookie-notice/' ),
 				'Download'    => 'wporg',
-			],
-			'simple-local-avatars'          => [
+			),
+			'simple-local-avatars'          => array(
 				'Name'        => esc_html__( 'Simple Local Avatars', 'newspack' ),
 				'Description' => esc_html__( 'Adds an avatar upload field to user profiles if the current user has media permissions. Generates requested sizes on demand just like Gravatar! Simple and lightweight.', 'newspack' ),
 				'Author'      => esc_html__( 'Jake Goldman, 10up', 'newspack' ),
 				'AuthorURI'   => esc_url( 'https://10up.com' ),
 				'PluginURI'   => esc_url( 'https://wordpress.org/plugins/simple-local-avatars/' ),
 				'Download'    => 'wporg',
-			],
-			'distributor-stable'            => [
+			),
+			'distributor-stable'            => array(
 				'Name'        => esc_html__( 'Distributor', 'newspack' ),
 				'Description' => esc_html__( 'Distributor is a WordPress plugin that makes it easy to syndicate and reuse content across your websites — whether in a single multisite or across the web.', 'newspack' ),
 				'Author'      => '10up',
 				'AuthorURI'   => esc_url( 'https://10up.com' ),
 				'PluginURI'   => esc_url( 'https://distributorplugin.com/' ),
 				'Download'    => esc_url( 'https://github.com/10up/distributor/archive/stable.zip' ),
-			],
-			'super-cool-ad-inserter'        => [
+			),
+			'super-cool-ad-inserter'        => array(
 				'Name'        => esc_html__( 'Super Cool Ad Inserter Plugin', 'newspack' ),
 				'Description' => esc_html__( 'Display ads within your article content.', 'newspack' ),
 				'Author'      => esc_html__( 'INN Labs, Automattic', 'newspack' ),
 				'AuthorURI'   => esc_url( 'https://automattic.com' ),
 				'PluginURI'   => esc_url( 'https://wordpress.org/plugins/super-cool-ad-inserter/' ),
 				'Download'    => 'wporg',
-			],
-			'ad-refresh-control'            => [
+			),
+			'ad-refresh-control'            => array(
 				'Name'        => esc_html__( 'Ad Refresh Control', 'newspack' ),
 				'Description' => esc_html__( 'Enable Active View refresh for Google Ad Manager ads without needing to modify any code.', 'newspack' ),
 				'Author'      => esc_html__( 'Gary Thayer, David Green, 10up', 'newspack' ),
 				'AuthorURI'   => esc_url( 'https://10up.com' ),
 				'PluginURI'   => esc_url( 'https://wordpress.org/plugins/ad-refresh-control/' ),
 				'Download'    => 'wporg',
-			],
-			'publisher-media-kit'           => [
+			),
+			'publisher-media-kit'           => array(
 				'Name'        => esc_html__( 'Publisher Media Kit', 'newspack' ),
 				'Description' => esc_html__( 'Quick and easy option for small to medium sized publishers to digitize their media kit.', 'newspack' ),
 				'Author'      => esc_html__( '10up', 'newspack' ),
 				'AuthorURI'   => esc_url( 'https://10up.com' ),
 				'PluginURI'   => esc_url( 'https://wordpress.org/plugins/publisher-media-kit/' ),
 				'Download'    => 'wporg',
-			],
-			'broadstreet'                   => [
+			),
+			'broadstreet'                   => array(
 				'Name'        => esc_html__( 'Broadstreet', 'newspack' ),
 				'Description' => esc_html__( 'Integrate Broadstreet’s business directory and ad-serving features into your site.', 'newspack' ),
 				'Author'      => 'Broadstreet',
 				'AuthorURI'   => esc_url( 'https://broadstreetads.com/' ),
 				'PluginURI'   => esc_url( 'https://wordpress.org/plugins/broadstreet/' ),
 				'Download'    => 'wporg',
-			],
-		];
+			),
+		);
 
-		$default_info = [
+		$default_info = array(
 			'Name'        => '',
 			'Description' => '',
 			'Author'      => '',
@@ -326,7 +326,7 @@ class Plugin_Manager {
 			'DomainPath'  => '',
 			'Download'    => '',
 			'Status'      => '',
-		];
+		);
 
 		// Add plugin status info and fill in defaults.
 		foreach ( $managed_plugins as $plugin_slug => $managed_plugin ) {
@@ -384,7 +384,7 @@ class Plugin_Manager {
 	 * but installing them will not raise any issues in Health Check.
 	 */
 	private static function get_supported_plugins_slugs() {
-		return [
+		return array(
 			'amp',
 			'gutenberg',
 			'classic-widgets',
@@ -399,7 +399,7 @@ class Plugin_Manager {
 			'web-stories',
 			'ads-txt',
 			'woocommerce-memberships',
-		];
+		);
 	}
 
 	/**
@@ -411,7 +411,7 @@ class Plugin_Manager {
 		$plugins_info            = self::get_installed_plugins_info();
 		$managed_plugins         = self::get_managed_plugins();
 		$supported_plugins_slugs = self::get_supported_plugins_slugs();
-		$unmanaged_plugins       = [];
+		$unmanaged_plugins       = array();
 		foreach ( $plugins_info as $slug => $info ) {
 			$is_managed      = ! isset( $managed_plugins[ $slug ] );
 			$is_not_newspack = 0 !== strpos( $slug, 'newspack-' );
@@ -554,7 +554,7 @@ class Plugin_Manager {
 	public static function get_installed_plugins_info() {
 		$plugins = array_merge( get_plugins(), wp_get_themes() );
 
-		$installed_plugins_info = [];
+		$installed_plugins_info = array();
 		foreach ( self::get_installed_plugins() as $key => $path ) {
 			$installed_plugins_info[ $key ]         = $plugins[ $path ];
 			$installed_plugins_info[ $key ]['Path'] = $path;
@@ -623,11 +623,11 @@ class Plugin_Manager {
 			return new WP_Error( 'newspack_plugin_failed_uninstall', __( 'Plugins cannot be uninstalled.', 'newspack' ) );
 		}
 
-		$plugins_to_uninstall = [];
+		$plugins_to_uninstall = array();
 		$installed_plugins    = self::get_installed_plugins();
 
 		if ( ! is_array( $plugin ) ) {
-			$plugin = [ $plugin ];
+			$plugin = array( $plugin );
 		}
 
 		foreach ( $plugin as $plugin_slug ) {
@@ -706,9 +706,9 @@ class Plugin_Manager {
 		// Check WP.org for a download link, and install it from WP.org.
 		$plugin_info = plugins_api(
 			'plugin_information',
-			[
+			array(
 				'slug'   => $plugin_slug,
-				'fields' => [
+				'fields' => array(
 					'short_description' => false,
 					'sections'          => false,
 					'requires'          => false,
@@ -721,8 +721,8 @@ class Plugin_Manager {
 					'compatibility'     => false,
 					'homepage'          => false,
 					'donate_link'       => false,
-				],
-			]
+				),
+			)
 		);
 
 		if ( is_wp_error( $plugin_info ) ) {
@@ -771,15 +771,15 @@ class Plugin_Manager {
 		}
 
 		$result = $upgrader->install_package(
-			[
+			array(
 				'source'        => $working_dir,
 				'destination'   => WP_PLUGIN_DIR,
 				'clear_working' => true,
-				'hook_extra'    => [
+				'hook_extra'    => array(
 					'type'   => 'plugin',
 					'action' => 'install',
-				],
-			]
+				),
+			)
 		);
 		if ( is_wp_error( $result ) ) {
 			return new WP_Error( 'newspack_plugin_failed_install', $result->get_error_message() );
