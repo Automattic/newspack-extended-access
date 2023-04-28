@@ -25,8 +25,8 @@ class REST_Controller {
 	/**
 	 * Endpoint constants.
 	 */
-	const LOGIN_OR_REGISTER_GOOGLE_ENDPOINT = '/login/google';
-	const REGISTER_SUBSCRIPTION_ENDPOINT    = '/subscription/register';
+	const LOGIN_OR_REGISTER_GOOGLE_ENDPOINT = '/google/register';
+	const UNLOCK_ARTICLE_ENDPOINT           = '/unlock-article';
 	const VERIFY_USER_ENDPOINT              = '/login/status';
 
 	/**
@@ -52,10 +52,10 @@ class REST_Controller {
 
 		register_rest_route(
 			self::NAMESPACE,
-			self::REGISTER_SUBSCRIPTION_ENDPOINT,
+			self::UNLOCK_ARTICLE_ENDPOINT,
 			array(
 				'methods'             => WP_REST_Server::READABLE,
-				'callback'            => array( __CLASS__, 'api_register_subscription' ),
+				'callback'            => array( __CLASS__, 'api_unlock_article' ),
 				'permission_callback' => '__return_true',
 			)
 		);
@@ -161,28 +161,26 @@ class REST_Controller {
 	 * @param  WP_REST_Request $request Request object.
 	 * @return mixed            Returns Extended Access userState  object.
 	 */
-	public static function api_register_subscription( $request ) {
-		try {
-			$post_id       = $request->get_header( 'X-WP-Post-ID' );
-			$existing_user = get_user_by( 'email', $request->get_header( 'X-WP-User-Email' ) );
+	public static function api_unlock_article( $request ) {
+		$post_id       = $request->get_header( 'X-WP-Post-ID' );
+		$existing_user = get_user_by( 'email', $request->get_header( 'X-WP-User-Email' ) );
 
-			if ( $existing_user ) {
-				$user_id = $existing_user->ID;
+		if ( $existing_user ) {
+			$user_id = $existing_user->ID;
 
-				if ( isset( $post_id ) ) {
-					// Cookie name, Made from post-id and user-id.
-					$cookie_name    = 'newspack_' . md5( $post_id . $user_id );
-					$home_url_parts = wp_parse_url( home_url() );
-
-					// phpcs:disable WordPressVIPMinimum.Functions.RestrictedFunctions.cookies_setcookie
-					setcookie( $cookie_name, 'true', time() + 31556926, '/', $home_url_parts['host'], is_ssl(), false );
-					return rest_ensure_response( array( 'data' => 'ok' ) );
-				}
+			if ( isset( $post_id ) ) {
+				// Cookie name, Made from post-id and user-id.
+				$cookie_name = 'newspack_' . md5( $post_id . $user_id );
+		
+				return rest_ensure_response(
+					array(
+						'status' => 'UNLOCKED',
+						'c'      => $cookie_name,
+					) 
+				);
 			}
-			return rest_ensure_response( array( 'data' => 'NO_USER_OR_POST' ) );
-		} catch ( Error $er ) {
-			return rest_ensure_response( array( 'data' => $er ) );
 		}
+		return rest_ensure_response( array( 'status' => 'NO_USER_OR_POST' ) );
 	}
 
 	/**
@@ -193,7 +191,8 @@ class REST_Controller {
 	 */
 	public static function api_verify_user( $request ) {
 		$logged_in_user = wp_get_current_user();
-
+		$post_id        = $request->get_header( 'X-WP-Post-ID' );
+			
 		if ( $logged_in_user ) {
 			$email = $logged_in_user->user_email;
 
@@ -225,25 +224,36 @@ class REST_Controller {
 			}
 
 			$granted = false;
-			$post_id = $request->get_header( 'X-WP-Post-ID' );
 			$user_id = $logged_in_user->ID;
 
 			// Cookie name, Made from post id and user id.
 			$cookie_name = 'newspack_' . md5( $post_id . $user_id );
-
-			$jwt_sub = get_user_meta( $user_id, 'extended_access_sub', true );
+			$jwt_sub     = get_user_meta( $user_id, 'extended_access_sub', true );
 
 			// Checks if cookie is set, grants access only if cookie is set.
 			if ( $jwt_sub ) {
-				if ( isset( $_COOKIE[ $cookie_name ] ) ) {
-					$granted = true;
+				$member_can_view_post = wc_memberships_user_can( $existing_user->ID, 'view', array( 'post' => $post_id ) );
 
+				if ( $member_can_view_post ) {
 					$response = rest_ensure_response(
 						array(
 							'id'                    => base64_encode( $jwt_sub ),
 							'email'                 => $email,
 							'registrationTimestamp' => strtotime( $logged_in_user->user_registered ),
-							'granted'               => $granted,
+							'subscriptionTimestamp' => strtotime( $logged_in_user->user_registered ), // TODO (@AnuragVasanwala): This should be revised.
+							'granted'               => true,
+							'grantReason'           => 'SUBSCRIBER',
+						)
+					);                  
+					$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
+					return $response;
+				} elseif ( isset( $_COOKIE[ $cookie_name ] ) ) {
+					$response = rest_ensure_response(
+						array(
+							'id'                    => base64_encode( $jwt_sub ),
+							'email'                 => $email,
+							'registrationTimestamp' => strtotime( $logged_in_user->user_registered ),
+							'granted'               => true,
 							'grantReason'           => 'METERING',
 						)
 					);
