@@ -134,12 +134,6 @@ function initGaaMetering() {
 						.then(response => response.json())
 						.then(
 							userState => {
-								// Refresh page only when it is not already unlocked
-								if (window.localStorage) {
-									if (localStorage.getItem('unlocked') && localStorage['unlocked'] === "true" && userState.granted === false) {
-										localStorage.removeItem('unlocked');
-									}
-								}
 								resolve(userState);
 							}
 						);
@@ -177,12 +171,6 @@ function initGaaMetering() {
 				.then(response => response.json())
 				.then(
 					userState => {
-						// Refresh page only when it is not already unlocked
-						if (window.localStorage) {
-							if (localStorage.getItem('unlocked') && localStorage['unlocked'] === "true" && userState.granted === false) {
-								localStorage.removeItem('unlocked');
-							}
-						}
 						loggedInUserEmail = userState.email;
 						resolve(userState);
 					}

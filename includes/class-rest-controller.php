@@ -169,15 +169,24 @@ class REST_Controller {
 			$user_id = $existing_user->ID;
 
 			if ( isset( $post_id ) ) {
-				// Cookie name, Made from post-id and user-id.
-				$cookie_name = 'newspack_' . md5( $post_id . $user_id );
+				$member_can_view_post = wc_memberships_user_can( $user_id, 'view', array( 'post' => $post_id ) );
 		
-				return rest_ensure_response(
-					array(
-						'status' => 'UNLOCKED',
-						'c'      => $cookie_name,
-					) 
-				);
+				if ( $member_can_view_post ) {
+					return rest_ensure_response(
+						array(
+							'status' => 'SUBSCRIBER',
+						) 
+					);
+				} else {
+					// Cookie name, Made from post-id and user-id.
+					$cookie_name = 'newspack_' . md5( $post_id . $user_id );
+					return rest_ensure_response(
+						array(
+							'status' => 'UNLOCKED',
+							'c'      => $cookie_name,
+						) 
+					);
+				}
 			}
 		}
 		return rest_ensure_response( array( 'status' => 'NO_USER_OR_POST' ) );
