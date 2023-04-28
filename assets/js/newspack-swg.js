@@ -134,6 +134,9 @@ function initGaaMetering() {
 						.then(response => response.json())
 						.then(
 							userState => {
+								if(userState.grantReason === 'SUBSCRIBER'){
+									window.location.reload();
+								}
 								resolve(userState);
 							}
 						);
