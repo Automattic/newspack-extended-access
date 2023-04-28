@@ -89,7 +89,6 @@ class Google_ExtendedAccess {
 				array(
 					'nonce'             => wp_create_nonce( 'wp_rest' ),
 					'allowedReferrers'  => $allowed_referrers,
-					// TODO (@AnuragVasanwala): Parameter 'postID' should be remove before deploying to production.
 					'postID'            => get_the_ID(),
 					'googleClientApiID' => get_option( 'newspack_extended_access__google_client_api_id', '' ),
 				)

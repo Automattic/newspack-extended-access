@@ -163,7 +163,6 @@ class REST_Controller {
 	 */
 	public static function api_register_subscription( $request ) {
 		try {
-			// TODO (@AnuragVasanwala): Remove getting post-id and user-id from headers.
 			$post_id       = $request->get_header( 'X-WP-Post-ID' );
 			$existing_user = get_user_by( 'email', $request->get_header( 'X-WP-User-Email' ) );
 
