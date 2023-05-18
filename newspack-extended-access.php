@@ -6,9 +6,9 @@
  * Author:          Automattic
  * Text Domain:     newspack-extended-access
  * Domain Path:     /languages
- * Version:         1.60.0
+ * Version:         1.0
  *
- * @package newspack-extended-access
+ * @package Newspack\ExtendedAccess
  */
 
 defined( 'ABSPATH' ) || exit;
@@ -19,4 +19,4 @@ if ( ! defined( 'NEWSPACK_EXTENDED_ACCESS_PLUGIN_FILE' ) ) {
 
 require_once 'vendor/autoload.php';
 
-Newspack_Extended_Access\Initializer::init();
+Newspack\ExtendedAccess\Initializer::init();
