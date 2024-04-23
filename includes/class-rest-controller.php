@@ -93,10 +93,7 @@ class REST_Controller {
 			$user_id = $existing_user->ID;
 			$result  = Newspack\Reader_Activation::set_current_reader( $existing_user->ID );
 			if ( is_wp_error( $result ) ) {
-				if ( in_array( array( 'administrator', 'editor' ), (array) $existing_user->roles ) ) {
-					// Do not grand user with role either 'Admin' or 'Editor' to login via SwG.
-					$user_id = -1;
-				}
+				return $result;
 			} else {
 				update_user_meta( $existing_user->ID, 'extended_access_sub', $token->sub );
 			}
