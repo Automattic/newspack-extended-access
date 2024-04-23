@@ -26,5 +26,4 @@ class WooCommerce {
 		 */
 		add_filter( 'wc_memberships_display_content_category_restricted_messages', '__return_false' );
 	}
-
 }

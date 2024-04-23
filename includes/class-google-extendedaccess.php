@@ -22,16 +22,24 @@ class Google_ExtendedAccess {
 	 * Set up hooks and filters.
 	 */
 	public static function init() {
-		if ( ! is_front_page() && ! is_404() ) {
-			add_action( 'wp_head', array( __CLASS__, 'add_extended_access_ld_json' ), -1 );
-			add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_script' ) );
-		}
+		add_action( 'wp_head', array( __CLASS__, 'add_extended_access_ld_json' ), -1 );
+		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_script' ) );
+	}
+
+	/**
+	 * Check conditions for frontend markup insertion.
+	 */
+	private static function can_insert_frontend_markup() {
+		return ! is_front_page() && ! is_404();
 	}
 
 	/**
 	 * Embeds required LD+JSON schema for Google Extended Access.
 	 */
 	public static function add_extended_access_ld_json() {
+		if ( ! self::can_insert_frontend_markup() ) {
+			return;
+		}
 		// 'wc_memberships_is_post_content_restricted()' function will only available if WooCommerce Membership plugin is installed and active.
 		if ( function_exists( 'wc_memberships_is_post_content_restricted' ) ) {
 			// Add 'isAccessibleForFree' schema for compatibility with Google Extended Access.
@@ -72,6 +80,10 @@ class Google_ExtendedAccess {
 	 * Enqueues scripts for Google Extended Access and Newspack SWG script.
 	 */
 	public static function enqueue_script() {
+		if ( ! self::can_insert_frontend_markup() ) {
+			return;
+
+		}
 		// Add scripts only for `post` type.
 		if ( get_post_type() === 'post' ) { // Add slug in condition.
 			// Newspack Extended Access Script.
@@ -123,5 +135,4 @@ class Google_ExtendedAccess {
 			);
 		}
 	}
-
 }
