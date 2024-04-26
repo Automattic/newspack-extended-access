@@ -81,6 +81,13 @@ class REST_Controller {
 		// Decode JWT.
 		$token = json_decode( base64_decode( str_replace( '_', '/', str_replace( '-', '+', explode( '.', $request->get_body() )[1] ) ) ) );
 
+		// Validate the token.
+		$token_api_id = $token->azp;
+		$google_client_api_id = get_option( 'newspack_extended_access__google_client_api_id', '' );
+		if ( $token_api_id !== $google_client_api_id ) {
+			return new \WP_Error( 'newspack_extended_access_google_token', __('Invalid token', 'newspack-extended-access'), array( 'status' => 403 ) );
+		}
+
 		// Get Google Email.
 		$email = $token->email;
 
