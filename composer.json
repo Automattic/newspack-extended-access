@@ -20,5 +20,8 @@
     "allow-plugins": {
       "dealerdirect/phpcodesniffer-composer-installer": true
     }
+  },
+  "require": {
+    "firebase/php-jwt": "^6.10"
   }
 }
