@@ -79,11 +79,15 @@ class Google_Jwt {
 	}
 
 	/**
-	 * Get the JWKS from Google and cache them.
+	 * Get the JWKS from Google if the cache is expired and cache them.
 	 *
 	 * @return array|bool The JWKS or false if it could not be retrieved.
 	 */
 	public function get_jwks() {
+		if ( ! $this->should_refresh_jwks_cache() ) {
+			return $this->get_jwks_cached();
+		}
+
 		$jwks_uri = $this->get_jwks_uri();
 		if ( ! $jwks_uri ) {
 			return false;
