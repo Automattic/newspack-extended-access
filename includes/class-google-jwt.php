@@ -129,7 +129,7 @@ class Google_Jwt {
 	}
 
 	/**
-	 * Check if we shoulçd refresh the JWKS cache.
+	 * Check if we should refresh the JWKS cache.
 	 *
 	 * Cache is refreshed anytime a signature verification fails, but only if it's older than 5 minutes to avoid abuse.
 	 */
