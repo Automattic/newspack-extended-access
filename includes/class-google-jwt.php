@@ -7,8 +7,8 @@
 
 namespace Newspack\ExtendedAccess;
 
-use Firebase\JWT\JWK;
-use Firebase\JWT\JWT;
+use Firebase\JWT\JWK as Firebase_JWK;
+use Firebase\JWT\JWT as Firebase_JWT;
 use Firebase\JWT\SignatureInvalidException;
 use UnexpectedValueException;
 
@@ -153,15 +153,15 @@ class Google_Jwt {
 			return false;
 		}
 		try {
-			$decoded = \Firebase\JWT\JWT::decode( $this->payload, \Firebase\JWT\JWK::parseKeySet( $jwks ) );
-		} catch ( \Firebase\JWT\SignatureInvalidException $e ) {
-			// refresh Google JWKs cache and try again.
-			$jwks    = $this->get_jwks();
-		try {
-			$decoded = \Firebase\JWT\JWT::decode( $this->payload, \Firebase\JWT\JWK::parseKeySet( $jwks ) );
+			$decoded = Firebase_JWT::decode( $this->payload, Firebase_JWK::parseKeySet( $jwks ) );
 		} catch ( SignatureInvalidException $e ) {
-			return new \WP_Error( 'jwt_error', $e->getMessage() );
-		}
+			// refresh Google JWKs cache and try again.
+			$jwks = $this->get_jwks();
+			try {
+				$decoded = Firebase_JWT::decode( $this->payload, Firebase_JWK::parseKeySet( $jwks ) );
+			} catch ( SignatureInvalidException $e ) {
+				return new \WP_Error( 'jwt_error', $e->getMessage() );
+			}
 		} catch ( UnexpectedValueException $e ) {
 			return new \WP_Error( 'jwt_error', $e->getMessage() );
 		}
