@@ -159,7 +159,7 @@ class Google_Jwt {
 			$jwks    = $this->get_jwks();
 			$decoded = \Firebase\JWT\JWT::decode( $this->payload, \Firebase\JWT\JWK::parseKeySet( $jwks ) );
 		} catch ( UnexpectedValueException $e ) {
-			return new WP_Error( 'jwt_error', $e->getMessage() );
+			return new \WP_Error( 'jwt_error', $e->getMessage() );
 		}
 
 		// Validate the token.
