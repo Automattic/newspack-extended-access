@@ -157,7 +157,11 @@ class Google_Jwt {
 		} catch ( \Firebase\JWT\SignatureInvalidException $e ) {
 			// refresh Google JWKs cache and try again.
 			$jwks    = $this->get_jwks();
+		try {
 			$decoded = \Firebase\JWT\JWT::decode( $this->payload, \Firebase\JWT\JWK::parseKeySet( $jwks ) );
+		} catch ( SignatureInvalidException $e ) {
+			return new \WP_Error( 'jwt_error', $e->getMessage() );
+		}
 		} catch ( UnexpectedValueException $e ) {
 			return new \WP_Error( 'jwt_error', $e->getMessage() );
 		}
