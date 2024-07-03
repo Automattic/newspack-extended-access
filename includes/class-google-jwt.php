@@ -154,7 +154,7 @@ class Google_Jwt {
 		}
 		try {
 			$decoded = \Firebase\JWT\JWT::decode( $this->payload, \Firebase\JWT\JWK::parseKeySet( $jwks ) );
-		} catch ( SignatureInvalidException $e ) {
+		} catch ( \Firebase\JWT\SignatureInvalidException $e ) {
 			// refresh Google JWKs cache and try again.
 			$jwks    = $this->get_jwks();
 			$decoded = \Firebase\JWT\JWT::decode( $this->payload, \Firebase\JWT\JWK::parseKeySet( $jwks ) );
