@@ -159,7 +159,7 @@ class Google_Jwt {
 			$jwks = $this->get_jwks();
 			try {
 				$decoded = Firebase_JWT::decode( $this->payload, Firebase_JWK::parseKeySet( $jwks ) );
-			} catch ( SignatureInvalidException $e ) {
+			} catch ( UnexpectedValueException $e ) {
 				return new \WP_Error( 'jwt_error', $e->getMessage() );
 			}
 		} catch ( UnexpectedValueException $e ) {
