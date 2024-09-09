@@ -116,6 +116,9 @@ class REST_Controller {
 			Newspack\Reader_Activation::set_current_reader( $user_id );
 			$existing_user = get_user_by( 'id', $user_id );
 
+			// For tracking registration source.
+			add_user_meta( $result, 'registered_by', 'google-extended-access' );
+
 			add_user_meta( $result, 'extended_access_sub', $token->sub );
 			remove_filter( 'newspack_reader_activation_enabled', '__return_true' );
 			// At this point the user will be logged in.
