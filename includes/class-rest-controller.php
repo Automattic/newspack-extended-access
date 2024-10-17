@@ -105,7 +105,7 @@ class REST_Controller {
 		} else {
 			// Enables registering through SWG even if it is disabled.
 			add_filter( 'newspack_reader_activation_enabled', '__return_true' );
-			$result = Newspack\Reader_Activation::register_reader( $email, '', true, array() );
+			$result = Newspack\Reader_Activation::register_reader( $email, '', true, [ 'registration_method' => 'google-extended-access' ] );
 
 			if ( is_numeric( $result ) ) {
 				$user_id = $result;
