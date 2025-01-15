@@ -8,13 +8,16 @@
     "wp-coding-standards/wpcs": "*",
     "dealerdirect/phpcodesniffer-composer-installer": "*",
     "phpcompatibility/phpcompatibility-wp": "*",
-    "yoast/phpunit-polyfills": "^1.0",
+    "yoast/phpunit-polyfills": "^1.1",
     "phpunit/phpunit": "^7.0 || ^9.5"
   },
   "autoload": {
     "classmap": [
       "./includes"
     ]
+  },
+  "scripts": {
+    "test": "phpunit"
   },
   "config": {
     "allow-plugins": {
