@@ -9,8 +9,7 @@ namespace Newspack\ExtendedAccess;
 
 use Firebase\JWT\JWK as Firebase_JWK;
 use Firebase\JWT\JWT as Firebase_JWT;
-use Firebase\JWT\SignatureInvalidException;
-use UnexpectedValueException;
+use Exception;
 
 /**
  * Class responsible for verifying Google JWT tokens.
@@ -150,20 +149,24 @@ class Google_Jwt {
 		}
 
 		if ( ! $jwks ) {
-			return false;
+			return new \WP_Error( 'jwt_error', __( 'Failed to retrieve jwks.', 'newspack-extended-access' ) );
 		}
 		try {
 			$decoded = Firebase_JWT::decode( $this->payload, Firebase_JWK::parseKeySet( $jwks ) );
-		} catch ( SignatureInvalidException $e ) {
+		} catch ( Exception $e ) {
 			// refresh Google JWKs cache and try again.
 			$jwks = $this->get_jwks();
+
+			// If we still can't get the JWKs, return an error.
+			if ( ! $jwks ) {
+				return new \WP_Error( 'jwk_error', __( 'Failed to re-fetch & refresh jwks cache.', 'newspack-extended-access' ), array( 'status' => 500 ) );
+			}
+
 			try {
 				$decoded = Firebase_JWT::decode( $this->payload, Firebase_JWK::parseKeySet( $jwks ) );
-			} catch ( UnexpectedValueException $e ) {
+			} catch ( Exception $e ) {
 				return new \WP_Error( 'jwt_error', $e->getMessage() );
 			}
-		} catch ( UnexpectedValueException $e ) {
-			return new \WP_Error( 'jwt_error', $e->getMessage() );
 		}
 
 		// Validate the token.
