@@ -46,7 +46,7 @@ class Google_ExtendedAccess {
 			$flags = ( JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
 
 			$url_parts = wp_parse_url( home_url() );
-			$domain    = $url_parts['host'];
+			$domain    = str_replace( 'www.', '', $url_parts['host'] );
 
 			$ld_json = array(
 				'@context'            => 'https://schema.org',
