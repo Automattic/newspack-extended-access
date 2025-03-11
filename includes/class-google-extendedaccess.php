@@ -84,6 +84,12 @@ class Google_ExtendedAccess {
 			return;
 
 		}
+
+		// Only enqueue scripts when Extended Access is happening.
+                if ( empty( $_GET['gaa_ts'] ) ) {
+                        return;
+                }
+		
 		// Add scripts only for `post` type.
 		if ( get_post_type() === 'post' ) { // Add slug in condition.
 			// Newspack Extended Access Script.
