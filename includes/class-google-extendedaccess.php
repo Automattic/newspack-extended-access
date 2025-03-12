@@ -19,11 +19,19 @@ define( 'NEWSPACK_SWG_SCRIPT_VERSION', '1.0.1' );
 class Google_ExtendedAccess {
 
 	/**
+	 * Google Extended Access URL parameter.
+	 *
+	 * @var string
+	 */
+	const GOOGLE_EA_REQUEST_PARAM = 'gaa_ts';
+
+	/**
 	 * Set up hooks and filters.
 	 */
 	public static function init() {
 		add_action( 'wp_head', array( __CLASS__, 'add_extended_access_ld_json' ), -1 );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_script' ) );
+		add_action( 'query_vars', array( __CLASS__, 'add_extended_access_query_vars' ) );
 	}
 
 	/**
@@ -77,19 +85,29 @@ class Google_ExtendedAccess {
 	}
 
 	/**
+	 * Add query vars for Google Extended Access.
+	 *
+	 * @param array $vars Query vars.
+	 * @return array
+	 */
+	public static function add_extended_access_query_vars( $vars ) {
+		$vars[] = self::GOOGLE_EA_REQUEST_PARAM;
+		return $vars;
+	}
+
+	/**
 	 * Enqueues scripts for Google Extended Access and Newspack SWG script.
 	 */
 	public static function enqueue_script() {
 		if ( ! self::can_insert_frontend_markup() ) {
 			return;
-
 		}
 
 		// Only enqueue scripts when Extended Access is happening.
-                if ( empty( $_GET['gaa_ts'] ) ) {
-                        return;
-                }
-		
+		if ( empty( get_query_var( self::GOOGLE_EA_REQUEST_PARAM ) ) ) {
+			return;
+		}
+
 		// Add scripts only for `post` type.
 		if ( get_post_type() === 'post' ) { // Add slug in condition.
 			// Newspack Extended Access Script.
