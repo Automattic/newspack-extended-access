@@ -78,8 +78,13 @@ class REST_Controller {
 	 * @return mixed            Returns Extended Access userState  object.
 	 */
 	public static function api_login_or_register_google_account( $request ) {
+
 		// Decode JWT.
-		$token = json_decode( base64_decode( str_replace( '_', '/', str_replace( '-', '+', explode( '.', $request->get_body() )[1] ) ) ) );
+		$google_token = new Google_Jwt( $request->get_body() );
+		$token        = $google_token->decode();
+		if ( is_wp_error( $token ) ) {
+			return $token;
+		}
 
 		// Get Google Email.
 		$email = $token->email;
@@ -93,17 +98,14 @@ class REST_Controller {
 			$user_id = $existing_user->ID;
 			$result  = Newspack\Reader_Activation::set_current_reader( $existing_user->ID );
 			if ( is_wp_error( $result ) ) {
-				if ( in_array( array( 'administrator', 'editor' ), (array) $existing_user->roles ) ) {
-					// Do not grand user with role either 'Admin' or 'Editor' to login via SwG.
-					$user_id = -1;
-				}
+				return $result;
 			} else {
 				update_user_meta( $existing_user->ID, 'extended_access_sub', $token->sub );
 			}
 		} else {
 			// Enables registering through SWG even if it is disabled.
 			add_filter( 'newspack_reader_activation_enabled', '__return_true' );
-			$result = Newspack\Reader_Activation::register_reader( $email, '', true, array() );
+			$result = Newspack\Reader_Activation::register_reader( $email, '', true, [ 'registration_method' => 'google-extended-access' ] );
 
 			if ( is_numeric( $result ) ) {
 				$user_id = $result;
@@ -132,19 +134,19 @@ class REST_Controller {
 		if ( function_exists( 'wc_memberships_user_can' ) ) {
 			$member_can_view_post = wc_memberships_user_can( $user_id, 'view', array( 'post' => $post_id ) );
 		}
-		
+
 		if ( $member_can_view_post ) {
 			$response = rest_ensure_response(
 				array(
 					'id'                    => base64_encode( $token->sub ),
 					'email'                 => $email,
 					'postId'                => $post_id,
-					'registrationTimestamp' => strtotime( $logged_in_user->user_registered ),
-					'subscriptionTimestamp' => strtotime( $logged_in_user->user_registered ), // TODO (@AnuragVasanwala): This should be revised.
+					'registrationTimestamp' => strtotime( $existing_user->user_registered ),
+					'subscriptionTimestamp' => strtotime( $existing_user->user_registered ), // TODO (@AnuragVasanwala): This should be revised.
 					'granted'               => true,
 					'grantReason'           => 'SUBSCRIBER',
 				)
-			);                  
+			);
 			$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
 			return $response;
 		} else {
@@ -180,12 +182,12 @@ class REST_Controller {
 				if ( function_exists( 'wc_memberships_user_can' ) ) {
 					$member_can_view_post = wc_memberships_user_can( $user_id, 'view', array( 'post' => $post_id ) );
 				}
-		
+
 				if ( $member_can_view_post ) {
 					return rest_ensure_response(
 						array(
 							'status' => 'SUBSCRIBER',
-						) 
+						)
 					);
 				} else {
 					// Cookie name, Made from post-id and user-id.
@@ -194,7 +196,7 @@ class REST_Controller {
 						array(
 							'status' => 'UNLOCKED',
 							'c'      => $cookie_name,
-						) 
+						)
 					);
 				}
 			}
@@ -211,7 +213,7 @@ class REST_Controller {
 	public static function api_verify_user( $request ) {
 		$logged_in_user = wp_get_current_user();
 		$post_id        = $request->get_header( 'X-WP-Post-ID' );
-			
+
 		if ( $logged_in_user ) {
 			$email         = $logged_in_user->user_email;
 			$existing_user = get_user_by( 'email', $email );
@@ -241,7 +243,7 @@ class REST_Controller {
 					if ( function_exists( 'wc_memberships_user_can' ) ) {
 						$member_can_view_post = wc_memberships_user_can( $existing_user->ID, 'view', array( 'post' => $post_id ) );
 					}
-					
+
 					// Cookie name, Made from post id and user id.
 					$cookie_name = 'newspack_' . md5( $post_id . $user_id );
 
@@ -255,7 +257,7 @@ class REST_Controller {
 								'granted'               => true,
 								'grantReason'           => 'SUBSCRIBER',
 							)
-						);                  
+						);
 						$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
 						return $response;
 					} elseif ( isset( $_COOKIE[ $cookie_name ] ) ) {

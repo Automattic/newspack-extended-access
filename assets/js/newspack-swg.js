@@ -99,7 +99,8 @@ function initGaaMetering() {
 					// Capture full URL, including URL parameters, to redirect the user to after login
 					const redirectUri = encodeURIComponent(window.location.href);
 					// Redirect to a login page for existing users to login.
-					window.location = `${window.location.protocol}//${window.location.hostname}/my-account?redirect_to=${redirectUri}`;
+					// 'redirect' param is used by newspack plugin's reader-activation to prepare auth callback URL.
+					window.location = `${authenticationSettings.myAccountURL}?redirect=${redirectUri}`;
 				}
 			);
 		}
