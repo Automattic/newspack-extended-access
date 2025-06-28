@@ -22,7 +22,7 @@ class SinglePost_Subscription {
 		 * it removes actions added by woocommerce membership to
 		 * restrict access to post content.
 		 */
-		add_action( 'wp', array( __CLASS__, 'manage_paywall_restriction' ), 9 );
+		add_action( 'wp', [ __CLASS__, 'manage_paywall_restriction' ], 5 ); // Before Woo Memberships' restriction handler, which was lowered to 9 in 1.27.2.
 	}
 
 	/**
@@ -41,7 +41,7 @@ class SinglePost_Subscription {
 		// Checks if cookie is set, grants access only if cookie is set.
 		if ( isset( $_COOKIE[ $cookie_name ] ) ) {
 			// Remove restriction for the post (post_id) for user (user_id).
-			remove_action( 'wp', array( $membership_instance, 'handle_restriction_modes' ) );
+			remove_action( 'wp', array( $membership_instance, 'handle_restriction_modes' ), 9 );
 			remove_filter( 'the_posts', array( $membership_instance, 'exclude_restricted_content_comments' ), PHP_INT_MAX, 2 );
 			remove_filter( 'pre_get_comments', array( $membership_instance, 'exclude_restricted_comments' ), PHP_INT_MAX );
 			remove_filter( 'get_previous_post_where', array( $membership_instance, 'exclude_restricted_adjacent_posts' ), 1, 5 );
