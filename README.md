@@ -2,6 +2,8 @@
 
 Google Extended Access integration wrapper plugin for Newspack. The plugin enables readers to unlock free access to select paywalled articles on registration.
 
+Read more about [Google Extended Access](https://developers.google.com/news/subscribe/extended-access/integration-steps/get-started) (requires an eligible Google user to be signed in).
+
 ![Google Extended Access Prompt](assets/media/newspack-extended-access.png)
 
 ## Dependency
