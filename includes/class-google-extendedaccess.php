@@ -123,7 +123,11 @@ class Google_ExtendedAccess {
 			if ( has_post_thumbnail() ) {
 				$image_url               = get_the_post_thumbnail_url();
 				$ld_json['thumbnailUrl'] = $image_url;
-				$ld_json['image']        = $image_url; // This could be any image or array of images, not just the thumbnail.
+				/**
+				 * This could be an array with different image sizes.
+				 * See: https://developers.google.com/search/docs/appearance/structured-data/article
+				 */
+				$ld_json['image'] = $image_url;
 			}
 
 			$ld_json = wp_json_encode( $ld_json, $flags );
