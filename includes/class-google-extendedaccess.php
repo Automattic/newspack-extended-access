@@ -58,8 +58,12 @@ class Google_ExtendedAccess {
 
 			$ld_json = array(
 				'@context'            => 'https://schema.org',
-				'@type'               => 'Article',
+				'@type'               => 'NewsArticle',
+				'headline'            => get_the_title(),
 				'isAccessibleForFree' => ! wc_memberships_is_post_content_restricted(),
+				'inLanguage'          => get_bloginfo( 'language' ),
+				'url'                 => get_permalink(),
+				'description'         => get_the_excerpt(),
 				'isPartOf'            => array(
 					'@type'     => array( 'CreativeWork', 'Product' ),
 					'name'      => get_bloginfo( 'name' ),
@@ -68,8 +72,61 @@ class Google_ExtendedAccess {
 				'publisher'           => array(
 					'@type' => 'Organization',
 					'name'  => get_bloginfo( 'name' ),
+					'url'   => home_url(),
+					'logo'  => [
+						'@type'  => 'ImageObject',
+						'url'    => get_site_icon_url(),
+					],
 				),
 			);
+
+			// Dates in ISO 8601 format as per schema standards.
+			$ld_json['datePublished'] = get_the_date( 'c' );
+			$ld_json['dateModified']  = get_the_modified_date( 'c' );
+
+			$post_authors      = [];
+			$ld_json['author'] = [ // Default to the organization.
+				'@type' => 'Organization',
+				'name'  => get_bloginfo( 'name' ),
+				'url'   => home_url(),
+			];
+			if ( function_exists( 'get_coauthors' ) ) {
+				$post_authors = get_coauthors();
+			}
+			if ( empty( $post_authors ) ) {
+				$author_id    = absint( get_the_author_meta( 'ID' ) );
+				$post_authors = array( get_userdata( $author_id ) );
+			}
+			if ( ! empty( $post_authors ) ) {
+				$authors = array();
+				foreach ( $post_authors as $author ) {
+					if ( $author ) {
+						$author_data = [
+							'@type' => 'Person',
+							'name'  => $author->display_name,
+						];
+
+						$author_url = get_author_posts_url( $author->ID );
+						if ( $author_url ) {
+							$author_data['url'] = $author_url;
+						}
+
+						$authors[] = $author_data;
+					}
+				}
+
+				if ( ! empty( $authors ) ) {
+					$ld_json['author'] = count( $authors ) === 1 ? $authors[0] : $authors;
+				}
+			}
+
+			if ( has_post_thumbnail() ) {
+				$image_url = get_the_post_thumbnail_url();
+				if ( $image_url ) {
+					$ld_json['thumbnailUrl'] = $image_url;
+					$ld_json['image']        = $image_url; // This could be any image or array of images, not just the thumbnail.
+				}
+			}
 
 			$ld_json = wp_json_encode( $ld_json, $flags );
 			$ld_json = str_replace( "\n", PHP_EOL . "\t", $ld_json );
