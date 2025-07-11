@@ -135,19 +135,8 @@ function initGaaMetering() {
 						.then(response => response.json())
 						.then(
 							userState => {
-								if (userState.grantReason === 'SUBSCRIBER') {
-									if (window.localStorage) {
-										if (localStorage.getItem('unlocked') && localStorage['unlocked'] === "true" && userState.granted === false) {
-											localStorage.removeItem('unlocked');
-										}
-									}
-								} else if (userState.grantReason === 'METERING') {
-									if (window.localStorage) {
-										if (userState.granted === true) {
-											localStorage['unlocked'] = true;
-											window.location.reload();	
-										}
-									}
+								if(userState.grantReason === 'SUBSCRIBER'){
+									window.location.reload();
 								}
 								resolve(userState);
 							}
@@ -197,18 +186,6 @@ function initGaaMetering() {
 	 * Fires when Extended Access grants permission.
 	 */
 	unlockArticle = () => {
-		if (window.localStorage) {
-			if (!localStorage.getItem('unlocked')) {
-				localStorage['unlocked'] = true;
-				window.location.reload();
-			}
-		}
-	}
-
-	/**
-	 * Display custom paywall instead of Google Intervention Dialog.
-	 */
-	showPaywall = () => {
 		fetch(
 			`${window.location.protocol}//${window.location.hostname}/wp-json/newspack-extended-access/v1/unlock-article`,
 			{
@@ -225,15 +202,18 @@ function initGaaMetering() {
 				if (jsonData.status === 'UNLOCKED') {
 					if (getCookie(jsonData.c) === null) {
 						setCookie(jsonData.c, 'true', 365);
-						if (window.localStorage) {
-							if (localStorage.getItem('unlocked') && localStorage['unlocked'] === "true") {
-								localStorage.removeItem('unlocked');
-							}
-						}
 						window.location.reload();
 					}
 				}
 			});
+	}
+
+	/**
+	 * Display custom paywall instead of Google Intervention Dialog.
+	 */
+	showPaywall = () => {
+		// Redirect to a subscription page.
+		window.location = `${window.location.protocol}//${window.location.hostname}/subscribe`;
 	}
 
 	/**
