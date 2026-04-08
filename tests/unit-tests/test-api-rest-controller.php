@@ -134,24 +134,42 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Register a user (sent by SwG) and ensures they are not granted.
+	 * Helper to mock a Google JWT token via the decoded token filter.
+	 *
+	 * @param string $email The email for the mock token.
+	 * @param string $sub   The Google sub identifier.
+	 */
+	private function mock_google_token( $email, $sub = '0123456789' ) {
+		add_filter(
+			'newspack_extended_access_decoded_token',
+			function () use ( $email, $sub ) {
+				return (object) [
+					'email'          => $email,
+					'email_verified' => true,
+					'sub'            => $sub,
+					'azp'            => get_option( 'newspack_extended_access__google_client_api_id', '' ),
+				];
+			}
+		);
+	}
+
+	/**
+	 * Register a new user via Google and ensure they are not granted.
 	 */
 	public function test_registration__new_user() {
-		// Set to no logged-in user.
 		wp_set_current_user( 0 );
+		$this->mock_google_token( 'newuser@test.com', '10698610589970977261' );
 
-		// Prepare and send Request.
 		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/google/register' );
 		$request->set_header( 'Content-Type', 'text/plain' );
 		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
+		$request->set_body( 'mock-jwt' );
 
-		// Following gaaUser is the part of internal testing user.
-		$request->set_body( 'eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg2OTY5YWVjMzdhNzc4MGYxODgwNzg3NzU5M2JiYmY4Y2Y1ZGU1Y2UiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJuYmYiOjE2ODI1Njk0NjEsImF1ZCI6IjIyNDAwMTY5MDI5MS01MmY2YWYzNHFpNmI3dWc3aDZyMHZmOHRkdWRsbWhpMy5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsInN1YiI6IjEwNjk4NjEwNTg5OTcwOTc3MjYxOSIsImVtYWlsIjoibmV3c3BhY2sudGVzdC5lYS4yMDIzQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhenAiOiIyMjQwMDE2OTAyOTEtNTJmNmFmMzRxaTZiN3VnN2g2cjB2Zjh0ZHVkbG1oaTMuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJuYW1lIjoiTlAgRUEiLCJwaWN0dXJlIjoiaHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2EvQUdObXl4WnU1WGhMZVFrUkpRckNBM1U0aG5IUGlvcU5DbU5YYjdtMmRIYUU9czk2LWMiLCJnaXZlbl9uYW1lIjoiTlAiLCJmYW1pbHlfbmFtZSI6IkVBIiwiaWF0IjoxNjgyNTY5NzYxLCJleHAiOjE2ODI1NzMzNjEsImp0aSI6IjQwNTkxMDI1ZTQzN2M4MGY1OThkYmE2NDhjMDRlMWMxMTUyYWEyZDEifQ.jbuImJJOLzsakSuMJJOXzapPg7C8aQ156rAL6e81H7H3rHPYLLJg-vLc6rJ0NyXsPxKhbl1CnktTsIzwxMky11xc-a5_hR_bUqzlrJd_bZFGYzLzmtmgdHF1zunLMTeLXKgxSvmFd2296xooqRzY_R_ucDaqDgCLASfBst682u7NoPKO-9DpuTvTm-p4_mWeIwuq3tFaOhlD-s9vyUpw9o7MJSqezwv0d4Z_KKNqPRZ0I8Xn3JLOxkwHqVSkK29Hlsp9Zqh6onesVenZbI6n1VxtkqR8Dv_Hl64MkYIIgoYR_ekeVwK0UAquYRhtcc5VHuaGcC3oy02lsLKLrW7BXQ' );
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
-		$this->assertFalse( $response_data['granted'], 'Registered subscriber should be granted.' );
+		$this->assertFalse( $response_data['granted'], 'New user should not be granted.' );
 		$this->assertEquals( 'METERING', $response_data['grantReason'] );
 	}
 
@@ -159,17 +177,15 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	 * Ensures new user (with no subscription) should not be granted.
 	 */
 	public function test_registration__new_user_non_subscriber() {
-		// Set to no logged-in user.
 		wp_set_current_user( 0 );
+		$this->mock_google_token( 'another-newuser@test.com', '10698610589970977261' );
 
-		// Prepare and send Request.
 		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/google/register' );
 		$request->set_header( 'Content-Type', 'text/plain' );
 		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
+		$request->set_body( 'mock-jwt' );
 
-		// Following gaaUser is the part of internal testing user.
-		$request->set_body( 'eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg2OTY5YWVjMzdhNzc4MGYxODgwNzg3NzU5M2JiYmY4Y2Y1ZGU1Y2UiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJuYmYiOjE2ODI1Njk0NjEsImF1ZCI6IjIyNDAwMTY5MDI5MS01MmY2YWYzNHFpNmI3dWc3aDZyMHZmOHRkdWRsbWhpMy5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsInN1YiI6IjEwNjk4NjEwNTg5OTcwOTc3MjYxOSIsImVtYWlsIjoibmV3c3BhY2sudGVzdC5lYS4yMDIzQGdtYWlsLmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhenAiOiIyMjQwMDE2OTAyOTEtNTJmNmFmMzRxaTZiN3VnN2g2cjB2Zjh0ZHVkbG1oaTMuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJuYW1lIjoiTlAgRUEiLCJwaWN0dXJlIjoiaHR0cHM6Ly9saDMuZ29vZ2xldXNlcmNvbnRlbnQuY29tL2EvQUdObXl4WnU1WGhMZVFrUkpRckNBM1U0aG5IUGlvcU5DbU5YYjdtMmRIYUU9czk2LWMiLCJnaXZlbl9uYW1lIjoiTlAiLCJmYW1pbHlfbmFtZSI6IkVBIiwiaWF0IjoxNjgyNTY5NzYxLCJleHAiOjE2ODI1NzMzNjEsImp0aSI6IjQwNTkxMDI1ZTQzN2M4MGY1OThkYmE2NDhjMDRlMWMxMTUyYWEyZDEifQ.jbuImJJOLzsakSuMJJOXzapPg7C8aQ156rAL6e81H7H3rHPYLLJg-vLc6rJ0NyXsPxKhbl1CnktTsIzwxMky11xc-a5_hR_bUqzlrJd_bZFGYzLzmtmgdHF1zunLMTeLXKgxSvmFd2296xooqRzY_R_ucDaqDgCLASfBst682u7NoPKO-9DpuTvTm-p4_mWeIwuq3tFaOhlD-s9vyUpw9o7MJSqezwv0d4Z_KKNqPRZ0I8Xn3JLOxkwHqVSkK29Hlsp9Zqh6onesVenZbI6n1VxtkqR8Dv_Hl64MkYIIgoYR_ekeVwK0UAquYRhtcc5VHuaGcC3oy02lsLKLrW7BXQ' );
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
@@ -178,24 +194,22 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Ensures existing user with subscription are granted.
+	 * Ensures existing user with cookie are granted via metering.
 	 */
 	public function test_registration__existing_user_subscriber() {
-		// Set to no logged-in user.
 		wp_set_current_user( 0 );
+		$this->mock_google_token( 'reader@test.com', '0123456789' );
 
-		// Prepare and send Request.
 		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/google/register' );
 		$request->set_header( 'Content-Type', 'text/plain' );
 		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
+		$request->set_body( 'mock-jwt' );
 
-		// Following gaaUser is the part of internal testing user: 'reader@test.com'.
-		$request->set_body( 'eyJhbGciOiJSUzI1NiIsImtpZCI6Ijg2OTY5YWVjMzdhNzc4MGYxODgwNzg3NzU5M2JiYmY4Y2Y1ZGU1Y2UiLCJ0eXAiOiJKV1QifQ.eyJpc3MiOiJodHRwczovL2FjY291bnRzLmdvb2dsZS5jb20iLCJuYmYiOjE2ODI1Njk0NjEsImF1ZCI6InNhbXBsZS5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbSIsInN1YiI6IjAxMjM0NTY3ODkiLCJlbWFpbCI6InJlYWRlckB0ZXN0LmNvbSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJhenAiOiJzYW1wbGUuYXBwcy5nb29nbGV1c2VyY29udGVudC5jb20iLCJuYW1lIjoiTmV3c3BhY2sgUmVhZGVyIiwicGljdHVyZSI6Imh0dHBzOi8vbGgzLmdvb2dsZXVzZXJjb250ZW50LmNvbS9hL3NhbXBsZSIsImdpdmVuX25hbWUiOiJOUCIsImZhbWlseV9uYW1lIjoiRUEiLCJpYXQiOjE2ODI1Njk3NjEsImV4cCI6OTk5OTk5OTk5OSwianRpIjoiMDEyMzQ1Njc4OSJ9.yk1_Ayzo4Q4gYB2vSRExmgZ982t3Rg0qy2edirnP-eWZwT9SYULYi29c3JvzAPq1X4_KJnxaWFXzRhUtDs1amJbqDtM2JoIun6i9BKTbK3NtL1gFzpv9MM9s5rmWtx9lU0ayQX6nydSx9VefEyWyXI5hdOrLr-COMI_vCpK15R7C-G83Qz6OEEvHBzm3I_nu7BbyNvGq2s1bMQkfxgAuV6A9bCDZYQKBkHQHb6eNoIZEwnSneTtd03qG_B8gHRSO7v_4l234ZD0Z17tNs9kNXPTttLpl6Q-_vZrsEI-LbYLPaR1F3uM7BkFVAzpufGGoAstCDSr_7s-zV3qM9AAnjg' );
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
-		$this->assertTrue( $response_data['granted'], 'Newly registered subscriber should be granted.' );
+		$this->assertTrue( $response_data['granted'], 'Existing user with unlock cookie should be granted.' );
 		$this->assertEquals( 'METERING', $response_data['grantReason'] );
 	}
 

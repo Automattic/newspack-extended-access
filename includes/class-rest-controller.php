@@ -99,6 +99,10 @@ class REST_Controller {
 		// Decode JWT.
 		$google_token = new Google_Jwt( $request->get_body() );
 		$token        = $google_token->decode();
+
+		// Allow overriding the token for testing.
+		$token = apply_filters( 'newspack_extended_access_decoded_token', $token, $request->get_body() );
+
 		if ( is_wp_error( $token ) ) {
 			return $token;
 		}
