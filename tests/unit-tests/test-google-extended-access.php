@@ -20,6 +20,13 @@ class Newspack_Test_Google_ExtendedAccess extends WP_UnitTestCase {
 	public function set_up() {
 		parent::set_up();
 
+		// Stub wc_get_page_permalink if WooCommerce is not loaded.
+		if ( ! function_exists( 'wc_get_page_permalink' ) ) {
+			function wc_get_page_permalink( $page ) {
+				return home_url( '/' . $page );
+			}
+		}
+
 		// Initialize .
 		\Newspack\ExtendedAccess\Google_ExtendedAccess::init();
 
@@ -34,6 +41,9 @@ class Newspack_Test_Google_ExtendedAccess extends WP_UnitTestCase {
 	public function test_should_register_script() {
 		// Disables outputs performed using echo by the class/method being tested. Removing this print output performed by function 'google-account-gsi-client'.
 		$this->setOutputCallback( function() {} );
+
+		// Set the query var required for script enqueuing.
+		set_query_var( \Newspack\ExtendedAccess\Google_ExtendedAccess::GOOGLE_EA_REQUEST_PARAM, time() );
 
 		do_action( 'wp_head' );
 		$this->assertTrue( wp_script_is( 'newspack-swg', 'registered' ) );
