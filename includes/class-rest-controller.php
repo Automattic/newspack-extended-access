@@ -56,7 +56,9 @@ class REST_Controller {
 			array(
 				'methods'             => WP_REST_Server::READABLE,
 				'callback'            => array( __CLASS__, 'api_unlock_article' ),
-				'permission_callback' => '__return_true',
+				'permission_callback' => function () {
+					return is_user_logged_in();
+				},
 			)
 		);
 
@@ -171,37 +173,37 @@ class REST_Controller {
 	 * @return mixed            Returns Extended Access userState  object.
 	 */
 	public static function api_unlock_article( $request ) {
-		$post_id       = $request->get_header( 'X-WP-Post-ID' );
-		$existing_user = get_user_by( 'email', $request->get_header( 'X-WP-User-Email' ) );
+		$post_id = $request->get_header( 'X-WP-Post-ID' );
+		$user_id = get_current_user_id();
 
-		if ( $existing_user ) {
-			$user_id = $existing_user->ID;
-
-			if ( isset( $post_id ) ) {
-				$member_can_view_post = false;
-				if ( function_exists( 'wc_memberships_user_can' ) ) {
-					$member_can_view_post = wc_memberships_user_can( $user_id, 'view', array( 'post' => $post_id ) );
-				}
-
-				if ( $member_can_view_post ) {
-					return rest_ensure_response(
-						array(
-							'status' => 'SUBSCRIBER',
-						)
-					);
-				} else {
-					// Cookie name, Made from post-id and user-id.
-					$cookie_name = 'newspack_' . md5( $post_id . $user_id );
-					return rest_ensure_response(
-						array(
-							'status' => 'UNLOCKED',
-							'c'      => $cookie_name,
-						)
-					);
-				}
-			}
+		if ( ! $post_id || ! $user_id ) {
+			return rest_ensure_response( array( 'status' => 'ERROR' ) );
 		}
-		return rest_ensure_response( array( 'status' => 'NO_USER_OR_POST' ) );
+
+		$member_can_view_post = false;
+		if ( function_exists( 'wc_memberships_user_can' ) ) {
+			$member_can_view_post = wc_memberships_user_can( $user_id, 'view', array( 'post' => $post_id ) );
+		}
+
+		if ( $member_can_view_post ) {
+			return rest_ensure_response(
+				array(
+					'status' => 'SUBSCRIBER',
+				)
+			);
+		}
+
+		// Set the unlock cookie server-side instead of exposing the key.
+		$cookie_name = 'newspack_' . md5( $post_id . $user_id );
+		if ( ! headers_sent() ) {
+			setcookie( $cookie_name, '1', time() + DAY_IN_SECONDS, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+		}
+
+		return rest_ensure_response(
+			array(
+				'status' => 'UNLOCKED',
+			)
+		);
 	}
 
 	/**

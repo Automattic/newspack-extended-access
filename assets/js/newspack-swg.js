@@ -214,24 +214,22 @@ function initGaaMetering() {
 			{
 				cache: 'no-store',
 				method: 'GET',
+				credentials: 'same-origin',
 				headers: {
 					'X-WP-Post-ID': authenticationSettings.postID,
-					'X-WP-User-Email': loggedInUserEmail
+					'X-WP-Nonce': authenticationSettings.nonce
 				}
 			}
 		)
 			.then(response => response.json())
 			.then(jsonData => {
 				if (jsonData.status === 'UNLOCKED') {
-					if (getCookie(jsonData.c) === null) {
-						setCookie(jsonData.c, 'true', 365);
-						if (window.localStorage) {
-							if (localStorage.getItem('unlocked') && localStorage['unlocked'] === "true") {
-								localStorage.removeItem('unlocked');
-							}
+					if (window.localStorage) {
+						if (localStorage.getItem('unlocked') && localStorage['unlocked'] === "true") {
+							localStorage.removeItem('unlocked');
 						}
-						window.location.reload();
 					}
+					window.location.reload();
 				}
 			});
 	}

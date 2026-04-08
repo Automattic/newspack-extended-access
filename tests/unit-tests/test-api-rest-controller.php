@@ -200,22 +200,35 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Ensures non existing user cannot have cookie created at their end.
+	 * Ensures unauthenticated user cannot access the unlock-article endpoint.
 	 */
-	public function test_subscriber_registration__non_existing_user() {
+	public function test_unlock_article__unauthenticated_user() {
 		// Set to no logged-in user.
 		wp_set_current_user( 0 );
 
 		// Prepare and send Request.
 		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/unlock-article' );
-		$request->set_header( 'Content-Type', 'text/plain' );
-		$request->set_header( 'X-WP-User-Email', 'non.existing.user@test.com' );
+		$request->set_header( 'X-WP-Post-ID', $this->post );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 401, $response->get_status(), 'Unauthenticated users should be denied access.' );
+	}
+
+	/**
+	 * Ensures authenticated user can unlock an article without leaking cookie name.
+	 */
+	public function test_unlock_article__authenticated_user() {
+		wp_set_current_user( $this->reader );
+
+		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/unlock-article' );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
 
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
-		$this->assertEquals( 'NO_USER_OR_POST', $response_data['status'] );
+		$this->assertEquals( 'UNLOCKED', $response_data['status'], 'Authenticated user should get UNLOCKED status.' );
+		$this->assertArrayNotHasKey( 'c', $response_data, 'Cookie name should not be exposed in the response.' );
 	}
 
 }
