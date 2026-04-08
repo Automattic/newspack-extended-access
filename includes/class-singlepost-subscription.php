@@ -32,14 +32,12 @@ class SinglePost_Subscription {
 		$post_id = get_the_ID();
 		$user_id = get_current_user_id();
 
-		// Example cookie name, Made from post id and user id.
-		$cookie_name = 'newspack_' . md5( $post_id . $user_id );
-
 		// Get membership instance.
 		$membership_instance = wc_memberships()->get_restrictions_instance()->get_posts_restrictions_instance();
 
-		// Checks if cookie is set, grants access only if cookie is set.
-		if ( isset( $_COOKIE[ $cookie_name ] ) ) {
+		// Only check the unlock cookie for logged-in users to prevent guest cookie forgery.
+		$cookie_name = 'newspack_' . md5( $post_id . $user_id );
+		if ( $user_id && isset( $_COOKIE[ $cookie_name ] ) ) {
 			// Remove restriction for the post (post_id) for user (user_id).
 			remove_action( 'wp', array( $membership_instance, 'handle_restriction_modes' ), 9 );
 			remove_filter( 'the_posts', array( $membership_instance, 'exclude_restricted_content_comments' ), PHP_INT_MAX, 2 );
