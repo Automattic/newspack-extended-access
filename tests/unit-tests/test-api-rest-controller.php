@@ -67,7 +67,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		wp_logout();
 
 		// Create a cookie for testing purpose.
-		$cookie_name = 'newspack_' . md5( $this->post . $this->reader );
+		$cookie_name = \Newspack\ExtendedAccess\REST_Controller::get_unlock_cookie_name( $this->post, $this->reader );
         // phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
 		$_COOKIE[ $cookie_name ] = 'true';
 	}
@@ -203,11 +203,9 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	 * Ensures unauthenticated user cannot access the unlock-article endpoint.
 	 */
 	public function test_unlock_article__unauthenticated_user() {
-		// Set to no logged-in user.
 		wp_set_current_user( 0 );
 
-		// Prepare and send Request.
-		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/unlock-article' );
+		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/unlock-article' );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
 
 		$response = $this->server->dispatch( $request );
@@ -216,19 +214,35 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Ensures authenticated user can unlock an article without leaking cookie name.
+	 * Ensures authenticated Extended Access user can unlock an article without leaking cookie name.
 	 */
-	public function test_unlock_article__authenticated_user() {
+	public function test_unlock_article__extended_access_user() {
 		wp_set_current_user( $this->reader );
+		update_user_meta( $this->reader, 'extended_access_sub', '0123456789' );
 
-		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/unlock-article' );
+		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/unlock-article' );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
 
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
-		$this->assertEquals( 'UNLOCKED', $response_data['status'], 'Authenticated user should get UNLOCKED status.' );
+		$this->assertEquals( 'UNLOCKED', $response_data['status'], 'Extended Access user should get UNLOCKED status.' );
 		$this->assertArrayNotHasKey( 'c', $response_data, 'Cookie name should not be exposed in the response.' );
+	}
+
+	/**
+	 * Ensures logged-in user without Extended Access registration cannot unlock articles.
+	 */
+	public function test_unlock_article__non_extended_access_user() {
+		wp_set_current_user( $this->reader );
+		delete_user_meta( $this->reader, 'extended_access_sub' );
+
+		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/unlock-article' );
+		$request->set_header( 'X-WP-Post-ID', $this->post );
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertEquals( 403, $response->get_status(), 'Users without Extended Access registration should be denied.' );
 	}
 
 }

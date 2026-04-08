@@ -37,6 +37,17 @@ class REST_Controller {
 	}
 
 	/**
+	 * Generate a keyed, non-forgeable unlock cookie name for a post and user.
+	 *
+	 * @param int $post_id The post ID.
+	 * @param int $user_id The user ID.
+	 * @return string The cookie name.
+	 */
+	public static function get_unlock_cookie_name( $post_id, $user_id ) {
+		return 'newspack_' . wp_hash( $post_id . '|' . $user_id );
+	}
+
+	/**
 	 * Registers REST Endpoints for Extended Access.
 	 */
 	public static function register_api_endpoints() {
@@ -54,10 +65,14 @@ class REST_Controller {
 			self::NAMESPACE,
 			self::UNLOCK_ARTICLE_ENDPOINT,
 			array(
-				'methods'             => WP_REST_Server::READABLE,
+				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'api_unlock_article' ),
 				'permission_callback' => function () {
-					return is_user_logged_in();
+					if ( ! is_user_logged_in() ) {
+						return false;
+					}
+					// Only Extended Access users (registered via Google) may unlock articles.
+					return (bool) get_user_meta( get_current_user_id(), 'extended_access_sub', true );
 				},
 			)
 		);
@@ -123,8 +138,7 @@ class REST_Controller {
 			// At this point the user will be logged in.
 		}
 
-		// Example cookie name, Made from post id and user id.
-		$cookie_name = 'newspack_' . md5( $post_id . $user_id );
+		$cookie_name = self::get_unlock_cookie_name( $post_id, $user_id );
 
 		if ( isset( $_COOKIE[ $cookie_name ] ) ) {
 			$granted = true;
@@ -173,11 +187,11 @@ class REST_Controller {
 	 * @return mixed            Returns Extended Access userState  object.
 	 */
 	public static function api_unlock_article( $request ) {
-		$post_id = $request->get_header( 'X-WP-Post-ID' );
+		$post_id = absint( $request->get_header( 'X-WP-Post-ID' ) );
 		$user_id = get_current_user_id();
 
-		if ( ! $post_id || ! $user_id ) {
-			return rest_ensure_response( array( 'status' => 'ERROR' ) );
+		if ( ! $post_id ) {
+			return new \WP_Error( 'missing_post_id', 'A valid post ID is required.', array( 'status' => 400 ) );
 		}
 
 		$member_can_view_post = false;
@@ -194,7 +208,7 @@ class REST_Controller {
 		}
 
 		// Set the unlock cookie server-side instead of exposing the key.
-		$cookie_name = 'newspack_' . md5( $post_id . $user_id );
+		$cookie_name = self::get_unlock_cookie_name( $post_id, $user_id );
 		if ( ! headers_sent() ) {
 			setcookie( $cookie_name, '1', time() + DAY_IN_SECONDS, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
 		}
@@ -246,8 +260,7 @@ class REST_Controller {
 						$member_can_view_post = wc_memberships_user_can( $existing_user->ID, 'view', array( 'post' => $post_id ) );
 					}
 
-					// Cookie name, Made from post id and user id.
-					$cookie_name = 'newspack_' . md5( $post_id . $user_id );
+					$cookie_name = self::get_unlock_cookie_name( $post_id, $user_id );
 
 					if ( $member_can_view_post ) {
 						$response = rest_ensure_response(

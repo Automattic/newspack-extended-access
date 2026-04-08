@@ -12,11 +12,6 @@
  * /
 
 /**
- * Holds logged-in user email for few REST Endpoints.
- */
-let loggedInUserEmail = "";
-
-/**
  * Parses JWT token and converts into equivalent JSON object.
  *
  * @param {string} token JWT Token to be parse.
@@ -34,49 +29,6 @@ function parseJwt(token) {
 	);
 
 	return JSON.parse(jsonPayload);
-}
-
-/**
- * Creates a cookie.
- *
- * @param {string} name Name of the cookie.
- * @param {string} value Value to be stored.
- * @param {number} days Expire cookie after specified days.
- */
-function setCookie(name, value, days) {
-	var expires = "";
-	if (days) {
-		var date = new Date();
-		date.setTime(date.getTime() + (days * 24 * 60 * 60 * 1000));
-		expires = "; expires=" + date.toUTCString();
-	}
-	document.cookie = name + "=" + (value || "") + expires + "; path=/";
-}
-
-/**
- * Retrieves cookie value.
- *
- * @param {string} name Name of the cookie.
- * @returns {string|null} Returns string value if valid cookie is present else null.
- */
-function getCookie(name) {
-	var nameEQ = name + "=";
-	var ca = document.cookie.split(';');
-	for (var i = 0; i < ca.length; i++) {
-		var c = ca[i];
-		while (c.charAt(0) == ' ') c = c.substring(1, c.length);
-		if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length, c.length);
-	}
-	return null;
-}
-
-/**
- * Deletes cookie.
- *
- * @param {string} name Name of the cookie.
- */
-function eraseCookie(name) {
-	document.cookie = name + '=; Path=/; Expires=Thu, 01 Jan 1970 00:00:01 GMT;';
 }
 
 /**
@@ -117,8 +69,6 @@ function initGaaMetering() {
 					// Send that information to your Registration endpoint to register the user and
 					// return the userState for the newly registered user.
 
-					const gaaUserDecoded = parseJwt(gaaUser.credential);
-					loggedInUserEmail = gaaUserDecoded.email;
 					fetch(
 						`${window.location.protocol}//${window.location.hostname}/wp-json/newspack-extended-access/v1/google/register`,
 						{
@@ -186,7 +136,6 @@ function initGaaMetering() {
 				.then(response => response.json())
 				.then(
 					userState => {
-						loggedInUserEmail = userState.email;
 						resolve(userState);
 					}
 				);
@@ -213,7 +162,7 @@ function initGaaMetering() {
 			`${window.location.protocol}//${window.location.hostname}/wp-json/newspack-extended-access/v1/unlock-article`,
 			{
 				cache: 'no-store',
-				method: 'GET',
+				method: 'POST',
 				credentials: 'same-origin',
 				headers: {
 					'X-WP-Post-ID': authenticationSettings.postID,

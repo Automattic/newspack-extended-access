@@ -36,7 +36,7 @@ class SinglePost_Subscription {
 		$membership_instance = wc_memberships()->get_restrictions_instance()->get_posts_restrictions_instance();
 
 		// Only check the unlock cookie for logged-in users to prevent guest cookie forgery.
-		$cookie_name = 'newspack_' . md5( $post_id . $user_id );
+		$cookie_name = REST_Controller::get_unlock_cookie_name( $post_id, $user_id );
 		if ( $user_id && isset( $_COOKIE[ $cookie_name ] ) ) {
 			// Remove restriction for the post (post_id) for user (user_id).
 			remove_action( 'wp', array( $membership_instance, 'handle_restriction_modes' ), 9 );
