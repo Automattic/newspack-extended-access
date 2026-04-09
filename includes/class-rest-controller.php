@@ -142,14 +142,6 @@ class REST_Controller {
 			// At this point the user will be logged in.
 		}
 
-		$cookie_name = self::get_unlock_cookie_name( $post_id, $user_id );
-
-		if ( isset( $_COOKIE[ $cookie_name ] ) ) {
-			$granted = true;
-		} else {
-			$granted = false;
-		}
-
 		$member_can_view_post = false;
 		if ( function_exists( 'wc_memberships_user_can' ) ) {
 			$member_can_view_post = wc_memberships_user_can( $user_id, 'view', array( 'post' => $post_id ) );
@@ -169,19 +161,28 @@ class REST_Controller {
 			);
 			$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
 			return $response;
-		} else {
-			$response = rest_ensure_response(
-				array(
-					'id'                    => base64_encode( $token->sub ),
-					'postId'                => $post_id,
-					'registrationTimestamp' => strtotime( $existing_user->user_registered ),
-					'granted'               => $granted,
-					'grantReason'           => 'METERING',
-				)
-			);
-			$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
-			return $response;
 		}
+
+		// Grant metered access for the post the reader registered from by
+		// setting the unlock cookie inline.
+		if ( $post_id ) {
+			$cookie_name = self::get_unlock_cookie_name( $post_id, $user_id );
+			if ( ! headers_sent() ) {
+				setcookie( $cookie_name, '1', time() + DAY_IN_SECONDS, COOKIEPATH, COOKIE_DOMAIN, is_ssl(), true );
+			}
+		}
+
+		$response = rest_ensure_response(
+			array(
+				'id'                    => base64_encode( $token->sub ),
+				'postId'                => $post_id,
+				'registrationTimestamp' => strtotime( $existing_user->user_registered ),
+				'granted'               => true,
+				'grantReason'           => 'METERING',
+			)
+		);
+		$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
+		return $response;
 	}
 
 	/**

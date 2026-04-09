@@ -154,7 +154,9 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Register a new user via Google and ensure they are not granted.
+	 * A new user registering via Google should be granted metered access for
+	 * the post they registered from. The unlock cookie is set server-side as
+	 * part of the registration response.
 	 */
 	public function test_registration__new_user() {
 		wp_set_current_user( 0 );
@@ -169,12 +171,13 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
-		$this->assertFalse( $response_data['granted'], 'New user should not be granted.' );
+		$this->assertTrue( $response_data['granted'], 'Newly registered Extended Access user should be granted metered access.' );
 		$this->assertEquals( 'METERING', $response_data['grantReason'] );
 	}
 
 	/**
-	 * Ensures new user (with no subscription) should not be granted.
+	 * A second new user registering for the same post should also be granted —
+	 * metered access is per (user, post) and registration always unlocks it.
 	 */
 	public function test_registration__new_user_non_subscriber() {
 		wp_set_current_user( 0 );
@@ -189,12 +192,13 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
-		$this->assertFalse( $response_data['granted'], 'Newly registered subscriber should not be granted.' );
+		$this->assertTrue( $response_data['granted'], 'Newly registered Extended Access user should be granted metered access.' );
 		$this->assertEquals( 'METERING', $response_data['grantReason'] );
 	}
 
 	/**
-	 * Ensures existing user with cookie are granted via metering.
+	 * An existing user logging in via Google should also be granted metered
+	 * access for the post they logged in from.
 	 */
 	public function test_registration__existing_user_subscriber() {
 		wp_set_current_user( 0 );
@@ -209,7 +213,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
-		$this->assertTrue( $response_data['granted'], 'Existing user with unlock cookie should be granted.' );
+		$this->assertTrue( $response_data['granted'], 'Existing user logging in should be granted metered access.' );
 		$this->assertEquals( 'METERING', $response_data['grantReason'] );
 	}
 
