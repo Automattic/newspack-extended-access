@@ -1,0 +1,58 @@
+name: PHP Tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - trunk
+      - release
+      - alpha
+      - 'hotfix/**'
+      - 'epic/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test-php:
+    name: PHP tests
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:5.7
+        env:
+          MYSQL_ALLOW_EMPTY_PASSWORD: yes
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=3
+    env:
+      WP_TESTS_DIR: /tmp/wordpress-tests-lib
+      WP_CORE_DIR: /tmp/wordpress/
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+          extensions: mysqli
+          coverage: none
+
+      - name: Install system dependencies
+        run: sudo apt-get update && sudo apt-get install -y subversion default-mysql-client
+
+      - name: Install Composer dependencies
+        run: composer install --no-interaction
+
+      - name: Setup WordPress test environment
+        run: bash bin/install-wp-tests.sh wordpress_test root '' 127.0.0.1 latest
+
+      - name: Run tests
+        run: vendor/bin/phpunit
