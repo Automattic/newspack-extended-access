@@ -416,18 +416,25 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Ensures logged-in user without Extended Access registration cannot unlock articles.
+	 * A logged-in reader who never registered via Google Extended Access — for
+	 * example a pre-existing publisher reader who reached the article via the
+	 * "Already registered? Sign in" branch of Use Case 4 — must still be able
+	 * to unlock the article when Google's GAA library decides to grant them
+	 * EA. Previously the endpoint gated on `extended_access_sub` user-meta
+	 * and 403'd these users, which broke the dismiss-CTA → unlock flow for
+	 * any reader whose account predated EA.
 	 */
-	public function test_unlock_article__non_extended_access_user() {
+	public function test_unlock_article__logged_in_user_without_ea_sub_can_unlock() {
 		wp_set_current_user( $this->reader );
 		delete_user_meta( $this->reader, 'extended_access_sub' );
 
 		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/unlock-article' );
 		$request->set_header( 'X-WP-Post-ID', $this->post );
 
-		$response = $this->server->dispatch( $request );
+		$response      = $this->server->dispatch( $request );
+		$response_data = $response->get_data();
 
-		$this->assertEquals( 403, $response->get_status(), 'Users without Extended Access registration should be denied.' );
+		$this->assertEquals( 200, $response->get_status(), 'Logged-in users should be allowed to unlock irrespective of EA registration history.' );
+		$this->assertEquals( 'UNLOCKED', $response_data['status'] );
 	}
-
 }

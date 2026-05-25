@@ -143,21 +143,13 @@ function initGaaMetering() {
 	);
 
 	/**
-	 * Fires when Extended Access grants permission.
+	 * Fires when Google grants Extended Access — i.e. when the reader dismisses
+	 * the Extended Access CTA. We must record that grant server-side by hitting
+	 * /unlock-article (which sets a per-(user, post) cookie that
+	 * SinglePost_Subscription reads to lift the WC Memberships restriction),
+	 * then reload so the unrestricted page renders.
 	 */
 	unlockArticle = () => {
-		if (window.localStorage) {
-			if (!localStorage.getItem('unlocked')) {
-				localStorage['unlocked'] = true;
-				window.location.reload();
-			}
-		}
-	}
-
-	/**
-	 * Display custom paywall instead of Google Intervention Dialog.
-	 */
-	showPaywall = () => {
 		fetch(
 			`${window.location.protocol}//${window.location.hostname}/wp-json/newspack-extended-access/v1/unlock-article`,
 			{
@@ -172,15 +164,25 @@ function initGaaMetering() {
 		)
 			.then(response => response.json())
 			.then(jsonData => {
-				if (jsonData.status === 'UNLOCKED') {
-					if (window.localStorage) {
-						if (localStorage.getItem('unlocked') && localStorage['unlocked'] === "true") {
-							localStorage.removeItem('unlocked');
-						}
-					}
+				// Reload for either response shape: UNLOCKED (metered grant
+				// recorded) or SUBSCRIBER (the user already has membership
+				// access, no cookie needed but a reload still ensures the EA
+				// CTA disappears on the next render).
+				if (jsonData.status === 'UNLOCKED' || jsonData.status === 'SUBSCRIBER') {
 					window.location.reload();
 				}
 			});
+	}
+
+	/**
+	 * Fires when Google declines Extended Access, or when the reader clicks
+	 * Subscribe on the EA CTA. In either case the WC Memberships paywall is
+	 * already rendered on the page (server-side) and exposes the publisher's
+	 * subscribe button, so this callback is intentionally a no-op — we do not
+	 * want to unlock the article here.
+	 */
+	showPaywall = () => {
+		// Intentionally empty. See JSDoc.
 	}
 
 	/**

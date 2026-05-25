@@ -103,12 +103,24 @@ class REST_Controller {
 			array(
 				'methods'             => WP_REST_Server::CREATABLE,
 				'callback'            => array( __CLASS__, 'api_unlock_article' ),
+				/*
+				 * Any logged-in reader may unlock an article. In a *client-side*
+				 * Extended Access paywall (the mode this plugin operates in),
+				 * Google's GAA library performs all grant-policy evaluation in
+				 * the browser and calls `unlockArticle` only when it decides
+				 * to grant access — the publisher's job is just to honor that
+				 * decision. The endpoint is therefore protected by WP auth +
+				 * the REST nonce, and the resulting unlock cookie is keyed to
+				 * the (post, user) pair so a grant can't be replayed for
+				 * another reader. We previously gated this on the
+				 * `extended_access_sub` user-meta, but that excluded readers
+				 * who reached the article via the "Already registered? Sign
+				 * in" branch (Use Case 4) — Google grants them EA but they
+				 * never went through the Google-registration code path and
+				 * therefore have no `extended_access_sub` set.
+				 */
 				'permission_callback' => function () {
-					if ( ! is_user_logged_in() ) {
-						return false;
-					}
-					// Only Extended Access users (registered via Google) may unlock articles.
-					return (bool) get_user_meta( get_current_user_id(), 'extended_access_sub', true );
+					return is_user_logged_in();
 				},
 			)
 		);
