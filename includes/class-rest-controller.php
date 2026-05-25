@@ -48,6 +48,42 @@ class REST_Controller {
 	}
 
 	/**
+	 * Resolve the `subscriptionTimestamp` for the userState payload.
+	 *
+	 * Per the Extended Access spec this should reflect when the user became a
+	 * subscriber, not when their WP account was created. We use the earliest
+	 * start date across the user's active WC Memberships; if none can be
+	 * resolved we fall back to the supplied registration timestamp so the
+	 * response shape is still spec-compliant.
+	 *
+	 * @param int $user_id              The user ID.
+	 * @param int $fallback_timestamp   Timestamp to return when no membership can be resolved.
+	 * @return int Unix timestamp.
+	 */
+	private static function get_subscription_timestamp( $user_id, $fallback_timestamp ) {
+		if ( ! function_exists( 'wc_memberships_get_user_active_memberships' ) ) {
+			return $fallback_timestamp;
+		}
+
+		$memberships = wc_memberships_get_user_active_memberships( $user_id );
+		if ( empty( $memberships ) ) {
+			return $fallback_timestamp;
+		}
+
+		$earliest = null;
+		foreach ( $memberships as $membership ) {
+			$start = is_object( $membership ) && method_exists( $membership, 'get_start_date' )
+				? (int) $membership->get_start_date( 'timestamp' )
+				: 0;
+			if ( $start > 0 && ( null === $earliest || $start < $earliest ) ) {
+				$earliest = $start;
+			}
+		}
+
+		return null === $earliest ? $fallback_timestamp : $earliest;
+	}
+
+	/**
 	 * Registers REST Endpoints for Extended Access.
 	 */
 	public static function register_api_endpoints() {
@@ -148,13 +184,14 @@ class REST_Controller {
 		}
 
 		if ( $member_can_view_post ) {
-			$response = rest_ensure_response(
+			$registration_timestamp = strtotime( $existing_user->user_registered );
+			$response               = rest_ensure_response(
 				array(
 					'id'                    => base64_encode( $token->sub ),
 					'email'                 => $email,
 					'postId'                => $post_id,
-					'registrationTimestamp' => strtotime( $existing_user->user_registered ),
-					'subscriptionTimestamp' => strtotime( $existing_user->user_registered ), // TODO (@AnuragVasanwala): This should be revised.
+					'registrationTimestamp' => $registration_timestamp,
+					'subscriptionTimestamp' => self::get_subscription_timestamp( $user_id, $registration_timestamp ),
 					'granted'               => true,
 					'grantReason'           => 'SUBSCRIBER',
 				)
@@ -279,7 +316,7 @@ class REST_Controller {
 					'id'                    => $user_state_id,
 					'email'                 => $email,
 					'registrationTimestamp' => $registration_timestamp,
-					'subscriptionTimestamp' => $registration_timestamp, // TODO (@AnuragVasanwala): This should be revised.
+					'subscriptionTimestamp' => self::get_subscription_timestamp( $user_id, $registration_timestamp ),
 					'granted'               => true,
 					'grantReason'           => 'SUBSCRIBER',
 				)

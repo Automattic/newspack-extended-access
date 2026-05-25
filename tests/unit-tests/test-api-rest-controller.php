@@ -18,6 +18,49 @@ if ( ! function_exists( 'wc_memberships_user_can' ) ) {
 		return ! empty( $GLOBALS['newspack_ea_test_wc_memberships_user_can'] );
 	}
 }
+
+// Lightweight stand-in for a WC_Memberships_User_Membership object, exposing
+// just the `get_start_date()` shape the plugin reads.
+if ( ! class_exists( 'Newspack_EA_Test_Membership_Stub' ) ) {
+	/**
+	 * Stub membership object that mirrors `WC_Memberships_User_Membership::get_start_date()`.
+	 */
+	class Newspack_EA_Test_Membership_Stub {
+		/**
+		 * Start timestamp returned by `get_start_date( 'timestamp' )`.
+		 *
+		 * @var int
+		 */
+		public $start_timestamp;
+
+		/**
+		 * @param int $start_timestamp Membership start timestamp.
+		 */
+		public function __construct( $start_timestamp ) {
+			$this->start_timestamp = $start_timestamp;
+		}
+
+		/**
+		 * @param string $format Format token. Only 'timestamp' is honoured here.
+		 * @return int
+		 */
+		// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter -- format arg kept for parity with WC.
+		public function get_start_date( $format = 'mysql' ) {
+			return $this->start_timestamp;
+		}
+	}
+}
+
+// Controllable stub for WC Memberships' active-memberships lookup. Tests set
+// $GLOBALS['newspack_ea_test_active_memberships'] to an array of stub objects.
+if ( ! function_exists( 'wc_memberships_get_user_active_memberships' ) ) {
+	// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter -- signature must match WC.
+	function wc_memberships_get_user_active_memberships( $user_id ) {
+		return isset( $GLOBALS['newspack_ea_test_active_memberships'] )
+			? $GLOBALS['newspack_ea_test_active_memberships']
+			: array();
+	}
+}
 /**
  * Tests REST API Controller.
  */
@@ -57,6 +100,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		// Reset the controllable WC Memberships stub between tests so a single
 		// SUBSCRIBER-path test can't leak access into unrelated assertions.
 		$GLOBALS['newspack_ea_test_wc_memberships_user_can'] = false;
+		$GLOBALS['newspack_ea_test_active_memberships']      = array();
 
 		// Setup Server to mock requests.
 		global $wp_rest_server;
@@ -176,6 +220,63 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$this->assertEquals( 'SUBSCRIBER', $response_data['grantReason'] );
 		$this->assertArrayHasKey( 'id', $response_data );
 		$this->assertArrayHasKey( 'subscriptionTimestamp', $response_data );
+	}
+
+	/**
+	 * `subscriptionTimestamp` must reflect the user's actual membership start
+	 * date, not their WP account creation date. When multiple memberships are
+	 * active, the earliest start date is reported.
+	 */
+	public function test_login_status__subscription_timestamp_uses_membership_start_date() {
+		wp_set_current_user( $this->reader );
+		$GLOBALS['newspack_ea_test_wc_memberships_user_can'] = true;
+
+		$earliest_start                                 = 1_600_000_000;
+		$later_start                                    = 1_700_000_000;
+		$GLOBALS['newspack_ea_test_active_memberships'] = array(
+			new Newspack_EA_Test_Membership_Stub( $later_start ),
+			new Newspack_EA_Test_Membership_Stub( $earliest_start ),
+		);
+
+		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/login/status' );
+		$request->set_header( 'X-WP-Post-ID', $this->post );
+		$response      = $this->server->dispatch( $request );
+		$response_data = $response->get_data();
+
+		$this->assertEquals( 'SUBSCRIBER', $response_data['grantReason'] );
+		$this->assertEquals(
+			$earliest_start,
+			$response_data['subscriptionTimestamp'],
+			'subscriptionTimestamp should be the earliest active membership start date.'
+		);
+		$this->assertNotEquals(
+			$response_data['registrationTimestamp'],
+			$response_data['subscriptionTimestamp'],
+			'subscriptionTimestamp must no longer be hardcoded to the user_registered date.'
+		);
+	}
+
+	/**
+	 * When no active memberships can be resolved, `subscriptionTimestamp`
+	 * gracefully falls back to the registration timestamp so the response
+	 * shape stays spec-compliant.
+	 */
+	public function test_login_status__subscription_timestamp_falls_back_when_memberships_missing() {
+		wp_set_current_user( $this->reader );
+		$GLOBALS['newspack_ea_test_wc_memberships_user_can'] = true;
+		$GLOBALS['newspack_ea_test_active_memberships']      = array();
+
+		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/login/status' );
+		$request->set_header( 'X-WP-Post-ID', $this->post );
+		$response      = $this->server->dispatch( $request );
+		$response_data = $response->get_data();
+
+		$this->assertEquals( 'SUBSCRIBER', $response_data['grantReason'] );
+		$this->assertEquals(
+			$response_data['registrationTimestamp'],
+			$response_data['subscriptionTimestamp'],
+			'Fallback should use the registration timestamp when membership data is unavailable.'
+		);
 	}
 
 	/**
