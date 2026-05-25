@@ -36,9 +36,15 @@ class Google_ExtendedAccess {
 
 	/**
 	 * Check conditions for frontend markup insertion.
+	 *
+	 * Extended Access targets article pages, so both the LD+JSON schema
+	 * (which declares `@type: Article`) and the SwG client libraries are
+	 * scoped to single post views. Without this gate the schema would leak
+	 * onto archives, pages, search, and CPT singulars where the `Article`
+	 * type is incorrect and would confuse Google.
 	 */
 	private static function can_insert_frontend_markup() {
-		return ! is_front_page() && ! is_404();
+		return is_singular( 'post' );
 	}
 
 	/**
@@ -108,56 +114,53 @@ class Google_ExtendedAccess {
 			return;
 		}
 
-		// Add scripts only for `post` type.
-		if ( get_post_type() === 'post' ) { // Add slug in condition.
-			// Newspack Extended Access Script.
-			$assets_path = plugins_url( '../assets/', __FILE__ );
-			wp_register_script( 'newspack-swg', $assets_path . 'js/newspack-swg.js', array(), NEWSPACK_SWG_SCRIPT_VERSION, array( 'strategy' => 'async' ) );
-			wp_enqueue_script( 'newspack-swg' );
+		// Newspack Extended Access Script.
+		$assets_path = plugins_url( '../assets/', __FILE__ );
+		wp_register_script( 'newspack-swg', $assets_path . 'js/newspack-swg.js', array(), NEWSPACK_SWG_SCRIPT_VERSION, array( 'strategy' => 'async' ) );
+		wp_enqueue_script( 'newspack-swg' );
 
-			$home_url_parts    = wp_parse_url( home_url() );
-			$allowed_referrers = array( $home_url_parts['host'] );
+		$home_url_parts    = wp_parse_url( home_url() );
+		$allowed_referrers = array( $home_url_parts['host'] );
 
-			// Nonce for REST API.
-			wp_localize_script(
-				'newspack-swg',
-				'authenticationSettings',
-				array(
-					'nonce'             => wp_create_nonce( 'wp_rest' ),
-					'allowedReferrers'  => $allowed_referrers,
-					'postID'            => get_the_ID(),
-					'googleClientApiID' => get_option( 'newspack_extended_access__google_client_api_id', '' ),
-					'myAccountURL'      => wc_get_page_permalink( 'myaccount' )
-				)
-			);
+		// Nonce for REST API.
+		wp_localize_script(
+			'newspack-swg',
+			'authenticationSettings',
+			array(
+				'nonce'             => wp_create_nonce( 'wp_rest' ),
+				'allowedReferrers'  => $allowed_referrers,
+				'postID'            => get_the_ID(),
+				'googleClientApiID' => get_option( 'newspack_extended_access__google_client_api_id', '' ),
+				'myAccountURL'      => wc_get_page_permalink( 'myaccount' ),
+			)
+		);
 
-			// Google Extended Access Scripts.
-			wp_print_script_tag(
-				array(
-					'id'    => 'google-account-gsi-client',
-					'async' => true,
-					'src'   => esc_url( 'https://accounts.google.com/gsi/client' ),
-					'defer' => true,
-				)
-			);
+		// Google Extended Access Scripts.
+		wp_print_script_tag(
+			array(
+				'id'    => 'google-account-gsi-client',
+				'async' => true,
+				'src'   => esc_url( 'https://accounts.google.com/gsi/client' ),
+				'defer' => true,
+			)
+		);
 
-			wp_print_script_tag(
-				array(
-					'id'                    => 'google-news-swg',
-					'async'                 => true,
-					'subscriptions-control' => 'manual',
-					'src'                   => esc_url( 'https://news.google.com/swg/js/v1/swg.js' ),
-				)
-			);
+		wp_print_script_tag(
+			array(
+				'id'                    => 'google-news-swg',
+				'async'                 => true,
+				'subscriptions-control' => 'manual',
+				'src'                   => esc_url( 'https://news.google.com/swg/js/v1/swg.js' ),
+			)
+		);
 
-			wp_print_script_tag(
-				array(
-					'id'     => 'google-news-swg-gaa',
-					'defer'  => true,
-					'src'    => esc_url( 'https://news.google.com/swg/js/v1/swg-gaa.js' ),
-					'onload' => 'initGaaMetering()',
-				)
-			);
-		}
+		wp_print_script_tag(
+			array(
+				'id'     => 'google-news-swg-gaa',
+				'defer'  => true,
+				'src'    => esc_url( 'https://news.google.com/swg/js/v1/swg-gaa.js' ),
+				'onload' => 'initGaaMetering()',
+			)
+		);
 	}
 }
