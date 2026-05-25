@@ -8,6 +8,16 @@
 use Newspack\ExtendedAccess;
 
 require_once dirname( __FILE__ ) . '/utils/class-plugin-manager.php';
+
+// Provide a controllable stub for WC Memberships' access check so tests can
+// exercise the SUBSCRIBER code path without installing the (paid) plugin.
+// Behaviour is toggled per-test via the $GLOBALS['newspack_ea_test_wc_memberships_user_can'] flag.
+if ( ! function_exists( 'wc_memberships_user_can' ) ) {
+	// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter -- signature must match WC Memberships'.
+	function wc_memberships_user_can( $user_id, $action, $args = array() ) {
+		return ! empty( $GLOBALS['newspack_ea_test_wc_memberships_user_can'] );
+	}
+}
 /**
  * Tests REST API Controller.
  */
@@ -43,6 +53,10 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	 */
 	public function set_up() {
 		parent::set_up();
+
+		// Reset the controllable WC Memberships stub between tests so a single
+		// SUBSCRIBER-path test can't leak access into unrelated assertions.
+		$GLOBALS['newspack_ea_test_wc_memberships_user_can'] = false;
 
 		// Setup Server to mock requests.
 		global $wp_rest_server;
@@ -99,17 +113,69 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Ensures non registered user should not be granted.
+	 * A logged-in user without an `extended_access_sub` meta (i.e. registered
+	 * via channels other than Google Extended Access) must still be returned
+	 * to Google as a *registered* user — `id` and `registrationTimestamp` are
+	 * the spec's signal that the visitor isn't anonymous. Without them, Google
+	 * would show the registration intervention over an already-known reader.
 	 */
-	public function test_login_status__non_registered_reader() {
-		// Set to Newspack Reader user.
+	public function test_login_status__logged_in_user_without_ea_sub_is_recognised_as_registered() {
 		wp_set_current_user( $this->reader );
+		delete_user_meta( $this->reader, 'extended_access_sub' );
 
 		$request       = new WP_REST_Request( 'GET', $this->api_namespace . '/login/status' );
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
-		$this->assertFalse( $response_data['granted'], 'Non registered subscriber user should not be granted.' );
+		$this->assertFalse( $response_data['granted'], 'Reader without subscription or metering cookie should not be granted.' );
+		$this->assertArrayHasKey( 'id', $response_data, 'Logged-in users must expose an `id` so Google treats them as registered.' );
+		$this->assertNotEmpty( $response_data['id'] );
+		$this->assertArrayHasKey( 'registrationTimestamp', $response_data, 'Logged-in users must expose `registrationTimestamp`.' );
+		$this->assertIsInt( $response_data['registrationTimestamp'] );
+	}
+
+	/**
+	 * A logged-in user without an `extended_access_sub` meta who holds a
+	 * metering unlock cookie for the requested post must be reported as
+	 * `granted: true, grantReason: 'METERING'`. Previously the metering path
+	 * was gated on the EA-registered sub, so non-EA-registered readers fell
+	 * through to a `granted: false` even with a valid cookie.
+	 */
+	public function test_login_status__non_ea_user_with_metering_cookie_is_metered() {
+		wp_set_current_user( $this->reader );
+		delete_user_meta( $this->reader, 'extended_access_sub' );
+
+		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/login/status' );
+		$request->set_header( 'X-WP-Post-ID', $this->post );
+		$response      = $this->server->dispatch( $request );
+		$response_data = $response->get_data();
+
+		$this->assertTrue( $response_data['granted'], 'Reader with metering cookie should be granted.' );
+		$this->assertEquals( 'METERING', $response_data['grantReason'] );
+		$this->assertArrayHasKey( 'id', $response_data );
+	}
+
+	/**
+	 * A logged-in publisher subscriber who never registered via Google EA must
+	 * still be reported as `granted: true, grantReason: 'SUBSCRIBER'`. This is
+	 * the spec scenario "Registered user with access through a publisher
+	 * subscription" — Google must not show interventions over a subscriber's
+	 * article, regardless of how the subscriber's account was created.
+	 */
+	public function test_login_status__non_ea_subscriber_returns_subscriber_state() {
+		wp_set_current_user( $this->reader );
+		delete_user_meta( $this->reader, 'extended_access_sub' );
+		$GLOBALS['newspack_ea_test_wc_memberships_user_can'] = true;
+
+		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/login/status' );
+		$request->set_header( 'X-WP-Post-ID', $this->post );
+		$response      = $this->server->dispatch( $request );
+		$response_data = $response->get_data();
+
+		$this->assertTrue( $response_data['granted'], 'Subscriber should be granted regardless of EA registration history.' );
+		$this->assertEquals( 'SUBSCRIBER', $response_data['grantReason'] );
+		$this->assertArrayHasKey( 'id', $response_data );
+		$this->assertArrayHasKey( 'subscriptionTimestamp', $response_data );
 	}
 
 	/**

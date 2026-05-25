@@ -235,103 +235,87 @@ class REST_Controller {
 		$logged_in_user = wp_get_current_user();
 		$post_id        = $request->get_header( 'X-WP-Post-ID' );
 
-		if ( $logged_in_user ) {
-			$email         = $logged_in_user->user_email;
-			$existing_user = get_user_by( 'email', $email );
+		// Anonymous visitor — Google should show the registration intervention.
+		if ( ! $logged_in_user || ! $logged_in_user->ID ) {
+			$response = rest_ensure_response( array( 'granted' => false ) );
+			$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
+			return $response;
+		}
 
-			if ( $existing_user ) {
-				// Log the user in.
-				$result = Newspack\Reader_Activation::set_current_reader( $existing_user->ID );
+		$user_id                = $logged_in_user->ID;
+		$email                  = $logged_in_user->user_email;
+		$registration_timestamp = strtotime( $logged_in_user->user_registered );
 
-				if ( is_wp_error( $result ) ) {
-					$response = rest_ensure_response(
-						array(
-							'granted' => false,
-							'reason'  => $result,
-						)
-					);
-					$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
-					return $response;
-				}
-
-				$granted = false;
-				$user_id = $logged_in_user->ID;
-				$jwt_sub = get_user_meta( $user_id, 'extended_access_sub', true );
-
-				// Checks if cookie is set, grants access only if cookie is set.
-				if ( $jwt_sub ) {
-					$member_can_view_post = false;
-					if ( function_exists( 'wc_memberships_user_can' ) ) {
-						$member_can_view_post = wc_memberships_user_can( $existing_user->ID, 'view', array( 'post' => $post_id ) );
-					}
-
-					$cookie_name = self::get_unlock_cookie_name( $post_id, $user_id );
-
-					if ( $member_can_view_post ) {
-						$response = rest_ensure_response(
-							array(
-								'id'                    => base64_encode( $jwt_sub ),
-								'email'                 => $email,
-								'registrationTimestamp' => strtotime( $logged_in_user->user_registered ),
-								'subscriptionTimestamp' => strtotime( $logged_in_user->user_registered ), // TODO (@AnuragVasanwala): This should be revised.
-								'granted'               => true,
-								'grantReason'           => 'SUBSCRIBER',
-							)
-						);
-						$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
-						return $response;
-					} elseif ( isset( $_COOKIE[ $cookie_name ] ) ) {
-						$response = rest_ensure_response(
-							array(
-								'id'                    => base64_encode( $jwt_sub ),
-								'email'                 => $email,
-								'registrationTimestamp' => strtotime( $logged_in_user->user_registered ),
-								'granted'               => true,
-								'grantReason'           => 'METERING',
-							)
-						);
-						$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
-						return $response;
-					} else {
-						$response = rest_ensure_response(
-							array(
-								'id'                    => base64_encode( $jwt_sub ),
-								'email'                 => $email,
-								'registrationTimestamp' => strtotime( $logged_in_user->user_registered ),
-								'granted'               => false,
-							)
-						);
-						$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
-						return $response;
-					}
-				} else {
-					$response = rest_ensure_response(
-						array(
-							'granted' => false,
-						)
-					);
-					$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
-					return $response;
-				}
-			} else {
-				$response = rest_ensure_response(
-					array(
-						'granted' => false,
-						'reason'  => 'USER_DOES_NOT_EXISTS',
-					)
-				);
-				$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
-				return $response;
-			}
-		} else {
+		// Refresh the current reader so the Newspack reader activation system
+		// keeps in sync with the logged-in user.
+		$result = Newspack\Reader_Activation::set_current_reader( $user_id );
+		if ( is_wp_error( $result ) ) {
 			$response = rest_ensure_response(
 				array(
 					'granted' => false,
-					'reason'  => 'NO_LOGGEND_IN_USER',
+					'reason'  => $result->get_error_code(),
 				)
 			);
 			$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
 			return $response;
 		}
+
+		// Build the userState `id`. Prefer the Google `sub` when the user
+		// registered via Extended Access (so Google can correlate identities
+		// across visits); otherwise derive a stable id from the WP user ID so
+		// users who registered through other channels are still recognised as
+		// "registered users" instead of being treated as anonymous.
+		$jwt_sub       = get_user_meta( $user_id, 'extended_access_sub', true );
+		$user_state_id = $jwt_sub ? base64_encode( $jwt_sub ) : base64_encode( 'wp_' . $user_id );
+
+		// Subscriber: publisher membership grants access to the requested post.
+		$member_can_view_post = false;
+		if ( $post_id && function_exists( 'wc_memberships_user_can' ) ) {
+			$member_can_view_post = wc_memberships_user_can( $user_id, 'view', array( 'post' => $post_id ) );
+		}
+		if ( $member_can_view_post ) {
+			$response = rest_ensure_response(
+				array(
+					'id'                    => $user_state_id,
+					'email'                 => $email,
+					'registrationTimestamp' => $registration_timestamp,
+					'subscriptionTimestamp' => $registration_timestamp, // TODO (@AnuragVasanwala): This should be revised.
+					'granted'               => true,
+					'grantReason'           => 'SUBSCRIBER',
+				)
+			);
+			$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
+			return $response;
+		}
+
+		// Metered: a previously granted unlock cookie is present for this post.
+		$cookie_name = self::get_unlock_cookie_name( $post_id, $user_id );
+		if ( $post_id && isset( $_COOKIE[ $cookie_name ] ) ) {
+			$response = rest_ensure_response(
+				array(
+					'id'                    => $user_state_id,
+					'email'                 => $email,
+					'registrationTimestamp' => $registration_timestamp,
+					'granted'               => true,
+					'grantReason'           => 'METERING',
+				)
+			);
+			$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
+			return $response;
+		}
+
+		// Registered user with no current grant. `id` and `registrationTimestamp`
+		// signal to Google that this is a known reader so it can evaluate Extended
+		// Access (showing the EA CTA) instead of the registration intervention.
+		$response = rest_ensure_response(
+			array(
+				'id'                    => $user_state_id,
+				'email'                 => $email,
+				'registrationTimestamp' => $registration_timestamp,
+				'granted'               => false,
+			)
+		);
+		$response->set_headers( array( 'X-WP-Nonce' => wp_create_nonce( 'wp_rest' ) ) );
+		return $response;
 	}
 }
