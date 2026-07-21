@@ -48,6 +48,28 @@ class REST_Controller {
 	}
 
 	/**
+	 * Whether the user has full access to the post through the active content
+	 * gating system (e.g. a membership or a satisfied content gate), meaning
+	 * no metered unlock is needed.
+	 *
+	 * The user must be the current user: the Newspack Access Control check
+	 * evaluates gate access rules for the current session.
+	 *
+	 * @param int $user_id The user ID.
+	 * @param int $post_id The post ID.
+	 * @return bool
+	 */
+	private static function can_user_view_post( $user_id, $post_id ) {
+		if ( function_exists( 'wc_memberships_user_can' ) ) {
+			return (bool) wc_memberships_user_can( $user_id, 'view', array( 'post' => $post_id ) );
+		}
+		if ( $post_id && DependencyChecker::is_newspack_access_control_active() ) {
+			return ! \Newspack\Content_Gate::is_post_restricted( (int) $post_id );
+		}
+		return false;
+	}
+
+	/**
 	 * Registers REST Endpoints for Extended Access.
 	 */
 	public static function register_api_endpoints() {
@@ -142,10 +164,7 @@ class REST_Controller {
 			// At this point the user will be logged in.
 		}
 
-		$member_can_view_post = false;
-		if ( function_exists( 'wc_memberships_user_can' ) ) {
-			$member_can_view_post = wc_memberships_user_can( $user_id, 'view', array( 'post' => $post_id ) );
-		}
+		$member_can_view_post = self::can_user_view_post( $user_id, $post_id );
 
 		if ( $member_can_view_post ) {
 			$response = rest_ensure_response(
@@ -199,10 +218,7 @@ class REST_Controller {
 			return new \WP_Error( 'missing_post_id', 'A valid post ID is required.', array( 'status' => 400 ) );
 		}
 
-		$member_can_view_post = false;
-		if ( function_exists( 'wc_memberships_user_can' ) ) {
-			$member_can_view_post = wc_memberships_user_can( $user_id, 'view', array( 'post' => $post_id ) );
-		}
+		$member_can_view_post = self::can_user_view_post( $user_id, $post_id );
 
 		if ( $member_can_view_post ) {
 			return rest_ensure_response(
@@ -260,10 +276,7 @@ class REST_Controller {
 
 				// Checks if cookie is set, grants access only if cookie is set.
 				if ( $jwt_sub ) {
-					$member_can_view_post = false;
-					if ( function_exists( 'wc_memberships_user_can' ) ) {
-						$member_can_view_post = wc_memberships_user_can( $existing_user->ID, 'view', array( 'post' => $post_id ) );
-					}
+					$member_can_view_post = self::can_user_view_post( $existing_user->ID, $post_id );
 
 					$cookie_name = self::get_unlock_cookie_name( $post_id, $user_id );
 

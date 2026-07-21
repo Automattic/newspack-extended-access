@@ -98,6 +98,27 @@ class DependencyChecker {
 	}
 
 	/**
+	 * Check whether the first-party Newspack Access Control (content gates)
+	 * system is available and enabled.
+	 *
+	 * @return bool Return true if Access Control is active.
+	 */
+	public static function is_newspack_access_control_active(): bool {
+		return class_exists( '\Newspack\Content_Gate' )
+			&& is_callable( array( '\Newspack\Content_Gate', 'is_newspack_feature_enabled' ) )
+			&& \Newspack\Content_Gate::is_newspack_feature_enabled();
+	}
+
+	/**
+	 * Check whether the WooCommerce Memberships gating stack is fully active.
+	 *
+	 * @return bool Return true if WooCommerce and WooCommerce Memberships are installed and active.
+	 */
+	public static function is_wc_memberships_stack_active(): bool {
+		return self::is_wc_installed() && self::is_wc_active() && self::is_wc_memberships_installed() && self::is_wc_memberships_active();
+	}
+
+	/**
 	 * Check whether Google Client API ID is valid or not.
 	 *
 	 * @return bool Return true if valid Google Client API ID is present.

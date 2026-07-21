@@ -48,8 +48,18 @@ class Google_ExtendedAccess {
 		if ( ! self::can_insert_frontend_markup() ) {
 			return;
 		}
-		// 'wc_memberships_is_post_content_restricted()' function will only available if WooCommerce Membership plugin is installed and active.
+
+		// Whether the post is covered by content gating rules, from whichever
+		// gating system is active.
+		$is_post_restricted = null;
 		if ( function_exists( 'wc_memberships_is_post_content_restricted' ) ) {
+			// 'wc_memberships_is_post_content_restricted()' function will only be available if WooCommerce Memberships plugin is installed and active.
+			$is_post_restricted = wc_memberships_is_post_content_restricted();
+		} elseif ( DependencyChecker::is_newspack_access_control_active() ) {
+			$is_post_restricted = \Newspack\Content_Gate::post_has_restrictions( get_the_ID() );
+		}
+
+		if ( null !== $is_post_restricted ) {
 			// Add 'isAccessibleForFree' schema for compatibility with Google Extended Access.
 			$flags = ( JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
 
@@ -59,7 +69,7 @@ class Google_ExtendedAccess {
 			$ld_json = array(
 				'@context'            => 'https://schema.org',
 				'@type'               => 'Article',
-				'isAccessibleForFree' => ! wc_memberships_is_post_content_restricted(),
+				'isAccessibleForFree' => ! $is_post_restricted,
 				'isPartOf'            => array(
 					'@type'     => array( 'CreativeWork', 'Product' ),
 					'name'      => get_bloginfo( 'name' ),
@@ -118,6 +128,10 @@ class Google_ExtendedAccess {
 			$home_url_parts    = wp_parse_url( home_url() );
 			$allowed_referrers = array( $home_url_parts['host'] );
 
+			// The reader-facing account page: WooCommerce's My Account when
+			// available, otherwise the login URL redirecting back to the post.
+			$my_account_url = function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'myaccount' ) : wp_login_url();
+
 			// Nonce for REST API.
 			wp_localize_script(
 				'newspack-swg',
@@ -127,7 +141,7 @@ class Google_ExtendedAccess {
 					'allowedReferrers'  => $allowed_referrers,
 					'postID'            => get_the_ID(),
 					'googleClientApiID' => get_option( 'newspack_extended_access__google_client_api_id', '' ),
-					'myAccountURL'      => wc_get_page_permalink( 'myaccount' )
+					'myAccountURL'      => $my_account_url,
 				)
 			);
 
