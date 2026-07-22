@@ -52,8 +52,7 @@ class Google_ExtendedAccess {
 		// Whether the post is covered by content gating rules, from whichever
 		// gating system is active.
 		$is_post_restricted = null;
-		if ( function_exists( 'wc_memberships_is_post_content_restricted' ) ) {
-			// 'wc_memberships_is_post_content_restricted()' function will only be available if WooCommerce Memberships plugin is installed and active.
+		if ( DependencyChecker::is_wc_memberships_loaded() ) {
 			$is_post_restricted = wc_memberships_is_post_content_restricted();
 		} elseif ( DependencyChecker::is_newspack_access_control_active() ) {
 			$is_post_restricted = \Newspack\Content_Gate::post_has_restrictions( get_the_ID() );
@@ -128,9 +127,14 @@ class Google_ExtendedAccess {
 			$home_url_parts    = wp_parse_url( home_url() );
 			$allowed_referrers = array( $home_url_parts['host'] );
 
-			// The reader-facing account page: WooCommerce's My Account when
-			// available, otherwise the login URL redirecting back to the post.
-			$my_account_url = function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'myaccount' ) : wp_login_url();
+			/*
+			 * The page the SwG script sends existing readers to for logging in.
+			 * WooCommerce's My Account when available (Newspack reader
+			 * activation handles the script's appended `redirect` param there);
+			 * otherwise the WP login URL with `redirect_to` pre-set to the
+			 * current article, so the reader returns to it after logging in.
+			 */
+			$my_account_url = function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'myaccount' ) : wp_login_url( get_permalink() );
 
 			// Nonce for REST API.
 			wp_localize_script(

@@ -25,11 +25,24 @@ class SinglePost_Subscription {
 		add_action( 'wp', [ __CLASS__, 'manage_paywall_restriction' ], 5 ); // Before Woo Memberships' restriction handler, which was lowered to 9 in 1.27.2.
 
 		/*
-		 * Newspack Access Control (content gates) integration. These filters are
-		 * only consulted by the first-party gating, which stands down while Woo
-		 * Memberships is active - so they are safe to register unconditionally.
+		 * Newspack Access Control (content gates) integration. Both callbacks
+		 * stand down while Woo Memberships is loaded, keeping the legacy path
+		 * untouched.
+		 *
+		 * The restriction predicate itself is filtered - rather than any single
+		 * rendering surface - because every Access Control surface keys off it:
+		 * the inline gate, the overlay gate, Campaigns prompt suppression, and
+		 * the article_view activity suppression. Priority 20 runs after
+		 * Content_Restriction_Control (10) has computed the gate outcome.
 		 */
-		add_filter( 'newspack_content_gate_restrict_post', [ __CLASS__, 'maybe_allow_unlocked_post' ], 5, 2 ); // Before Access Control's metering handler at 10, so an unlocked view does not consume a metered view.
+		add_filter( 'newspack_is_post_restricted', [ __CLASS__, 'maybe_unrestrict_unlocked_post' ], 20, 2 );
+
+		/*
+		 * The metering short-circuit is still needed on top of the predicate:
+		 * surfaces such as the metering countdown call Metering::is_metering()
+		 * before checking the predicate, and that call records the view against
+		 * the reader's meter as a side effect.
+		 */
 		add_filter( 'newspack_content_gate_metering_short_circuit', [ __CLASS__, 'maybe_short_circuit_metering' ] );
 	}
 
@@ -52,21 +65,26 @@ class SinglePost_Subscription {
 	}
 
 	/**
-	 * Lift the Access Control restriction for a post the reader has unlocked
-	 * via Google Extended Access.
+	 * A post the reader has unlocked via Google Extended Access is not
+	 * restricted for them under Access Control.
 	 *
-	 * @param bool $restrict Whether to restrict the post.
-	 * @param int  $post_id  Post ID.
+	 * @param bool $is_post_restricted Whether the post is restricted for the current user.
+	 * @param int  $post_id            Post ID.
 	 * @return bool
 	 */
-	public static function maybe_allow_unlocked_post( $restrict, $post_id ) {
-		if ( ! $restrict ) {
-			return $restrict;
+	public static function maybe_unrestrict_unlocked_post( $is_post_restricted, $post_id ) {
+		if ( ! $is_post_restricted ) {
+			return $is_post_restricted;
+		}
+		// While Woo Memberships is loaded it owns the front-end; leave its
+		// restriction outcome untouched.
+		if ( DependencyChecker::is_wc_memberships_loaded() ) {
+			return $is_post_restricted;
 		}
 		if ( self::has_valid_unlock( $post_id ) ) {
 			return false;
 		}
-		return $restrict;
+		return $is_post_restricted;
 	}
 
 	/**
@@ -81,9 +99,9 @@ class SinglePost_Subscription {
 		if ( null !== $short_circuit ) {
 			return $short_circuit;
 		}
-		// While Woo Memberships is active it owns the front-end; leave its
+		// While Woo Memberships is loaded it owns the front-end; leave its
 		// metering interplay untouched.
-		if ( function_exists( 'wc_memberships' ) ) {
+		if ( DependencyChecker::is_wc_memberships_loaded() ) {
 			return $short_circuit;
 		}
 		if ( is_singular() && self::has_valid_unlock( get_queried_object_id() ) ) {
@@ -98,7 +116,7 @@ class SinglePost_Subscription {
 	public static function manage_paywall_restriction() {
 		// Woo Memberships-specific handling; under Newspack Access Control the
 		// integration happens via the content gate filters instead.
-		if ( ! function_exists( 'wc_memberships' ) ) {
+		if ( ! DependencyChecker::is_wc_memberships_loaded() ) {
 			return;
 		}
 

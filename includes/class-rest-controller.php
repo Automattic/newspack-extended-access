@@ -60,13 +60,25 @@ class REST_Controller {
 	 * @return bool
 	 */
 	private static function can_user_view_post( $user_id, $post_id ) {
-		if ( function_exists( 'wc_memberships_user_can' ) ) {
+		if ( DependencyChecker::is_wc_memberships_loaded() ) {
 			return (bool) wc_memberships_user_can( $user_id, 'view', array( 'post' => $post_id ) );
 		}
-		if ( $post_id && DependencyChecker::is_newspack_access_control_active() ) {
-			return ! \Newspack\Content_Gate::is_post_restricted( (int) $post_id );
+		if ( ! $post_id || ! DependencyChecker::is_newspack_access_control_active() ) {
+			return false;
 		}
-		return false;
+		// The Access Control check evaluates the current session only.
+		if ( get_current_user_id() !== (int) $user_id ) {
+			return false;
+		}
+
+		/*
+		 * Evaluate the underlying gate access without the Extended Access unlock
+		 * filter: a metered unlock must not report as full (SUBSCRIBER) access.
+		 */
+		remove_filter( 'newspack_is_post_restricted', array( SinglePost_Subscription::class, 'maybe_unrestrict_unlocked_post' ), 20 );
+		$can_view = ! \Newspack\Content_Gate::is_post_restricted( (int) $post_id );
+		add_filter( 'newspack_is_post_restricted', array( SinglePost_Subscription::class, 'maybe_unrestrict_unlocked_post' ), 20, 2 );
+		return $can_view;
 	}
 
 	/**
@@ -133,7 +145,7 @@ class REST_Controller {
 		$email = $token->email;
 
 		$existing_user = get_user_by( 'email', $email );
-		$post_id       = $request->get_header( 'X-WP-Post-ID' );
+		$post_id       = absint( $request->get_header( 'X-WP-Post-ID' ) );
 		$user_id       = false;
 		$granted       = false;
 
@@ -249,7 +261,7 @@ class REST_Controller {
 	 */
 	public static function api_verify_user( $request ) {
 		$logged_in_user = wp_get_current_user();
-		$post_id        = $request->get_header( 'X-WP-Post-ID' );
+		$post_id        = absint( $request->get_header( 'X-WP-Post-ID' ) );
 
 		if ( $logged_in_user ) {
 			$email         = $logged_in_user->user_email;

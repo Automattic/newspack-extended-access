@@ -10,9 +10,21 @@
       <directory suffix=".php">./vendor</directory>
     </exclude>
   </coverage>
+  <!--
+    The Access Control integration tests are a separate suite because they
+    define the NEWSPACK_CONTENT_GATES constant, which cannot be undefined and
+    would otherwise leak into any test class running after them. Suite order
+    below guarantees they run last within a single phpunit invocation; the
+    `composer test` script runs each suite as its own process for full
+    isolation.
+  -->
   <testsuites>
     <testsuite name="Newspack Test Suite">
       <directory prefix="test-" suffix=".php">./tests/unit-tests</directory>
+      <exclude>./tests/unit-tests/test-integration-access-control.php</exclude>
+    </testsuite>
+    <testsuite name="Access Control Integration">
+      <file>./tests/unit-tests/test-integration-access-control.php</file>
     </testsuite>
   </testsuites>
 </phpunit>

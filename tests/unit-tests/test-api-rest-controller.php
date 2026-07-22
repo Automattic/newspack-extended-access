@@ -23,10 +23,14 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	 * Setup for the tests.
 	 */
 	public static function set_up_before_class() {
-		// Install and activate Dependency Plugins.
-		$newspack_rel_latest = 'https://github.com/Automattic/newspack-plugin/releases/latest/download/newspack-plugin.zip';
+		// Install and activate Dependency Plugins. The Newspack plugin release
+		// is pinned so the harness does not float with `releases/latest`; a
+		// previously downloaded copy in the test WP install takes precedence
+		// (Plugin_Manager::install skips existing directories), so delete it
+		// when bumping the pin.
+		$newspack_release_zip = 'https://github.com/Automattic/newspack-plugin/releases/download/v6.42.3/newspack-plugin.zip';
 		echo esc_html( 'Installing Newspack...' . PHP_EOL );
-		\Newspack\ExtendedAccess\Plugin_Manager::install( $newspack_rel_latest );
+		\Newspack\ExtendedAccess\Plugin_Manager::install( $newspack_release_zip );
 
 		echo esc_html( 'Activating Newspack...' . PHP_EOL );
 		\Newspack\ExtendedAccess\Plugin_Manager::activate( 'newspack-plugin' );

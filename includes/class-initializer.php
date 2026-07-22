@@ -69,16 +69,23 @@ class Initializer {
 	public static function show_admin_notice__error() {
 		$plugin_notice = '';
 		$allowed_html  = array(
-			'a' => array(
+			'a'    => array(
 				'href' => array(),
 			),
-			'b' => array(),
+			'b'    => array(),
+			'code' => array(),
 		);
 
 		if ( ! DependencyChecker::is_wc_memberships_stack_active() && ! DependencyChecker::is_newspack_access_control_active() ) {
 			$plugin_notice = '<b>Newspack Extended Access</b> plugin requires a content gating system: either <b>Newspack Access Control</b> (content gates) or <b>WooCommerce</b> with <b>WooCommerce Memberships</b>. Open <a href="' . esc_url( admin_url( 'plugins.php?plugin_status=inactive' ) ) . '">Plugins Page</a>.';
 		} elseif ( ! DependencyChecker::is_valid_google_client_api_id() ) {
-			$plugin_notice = '<b>Newspack Extended Access</b> plugin requires <b>Google Client API ID</b> to be configured. Please check your <b>Google Client API ID</b> into <a href="' . esc_url( admin_url( 'admin.php?page=wc-settings&tab=memberships&section=newspack-extended-access' ) ) . '">Newspack Extended Access Settings</a>.';
+			if ( DependencyChecker::is_wc_memberships_stack_active() ) {
+				$plugin_notice = '<b>Newspack Extended Access</b> plugin requires <b>Google Client API ID</b> to be configured. Please check your <b>Google Client API ID</b> into <a href="' . esc_url( admin_url( 'admin.php?page=wc-settings&tab=memberships&section=newspack-extended-access' ) ) . '">Newspack Extended Access Settings</a>.';
+			} else {
+				// Without WooCommerce Memberships there is no settings screen for
+				// this option; point at the option itself until one exists.
+				$plugin_notice = '<b>Newspack Extended Access</b> plugin requires <b>Google Client API ID</b> to be configured. Set the <code>newspack_extended_access__google_client_api_id</code> option to your Google Client API ID, e.g. via WP-CLI: <code>wp option update newspack_extended_access__google_client_api_id your-client-id.apps.googleusercontent.com</code>.';
+			}
 		}
 
 		if ( ! empty( $plugin_notice ) ) {

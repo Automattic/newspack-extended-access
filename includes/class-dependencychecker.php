@@ -119,6 +119,17 @@ class DependencyChecker {
 	}
 
 	/**
+	 * Check whether the WooCommerce Memberships plugin code is loaded in this
+	 * request. The single runtime predicate for branching between the WCM and
+	 * Newspack Access Control integrations.
+	 *
+	 * @return bool Return true if WooCommerce Memberships is loaded.
+	 */
+	public static function is_wc_memberships_loaded(): bool {
+		return function_exists( 'wc_memberships' );
+	}
+
+	/**
 	 * Check whether Google Client API ID is valid or not.
 	 *
 	 * @return bool Return true if valid Google Client API ID is present.
