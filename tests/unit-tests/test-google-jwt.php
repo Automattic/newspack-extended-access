@@ -38,7 +38,7 @@ class Newspack_Test_Google_JWT extends WP_UnitTestCase {
 		$private_key = openssl_pkey_new(
 			array(
 				'digest_alg'       => 'sha256',
-				'private_key_bits' => 1024,
+				'private_key_bits' => 2048,
 				'private_key_type' => OPENSSL_KEYTYPE_RSA,
 			)
 		);
@@ -100,7 +100,7 @@ class Newspack_Test_Google_JWT extends WP_UnitTestCase {
 		$private_key = openssl_pkey_new(
 			array(
 				'digest_alg'       => 'sha256',
-				'private_key_bits' => 1024,
+				'private_key_bits' => 2048,
 				'private_key_type' => OPENSSL_KEYTYPE_RSA,
 			)
 		);
