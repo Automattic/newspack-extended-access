@@ -12,6 +12,7 @@ use Newspack\ExtendedAccess\REST_Controller;
 use Newspack\ExtendedAccess\SinglePost_Subscription;
 
 require_once dirname( __FILE__ ) . '/utils/class-plugin-manager.php';
+require_once dirname( __FILE__ ) . '/utils/trait-hook-snapshot.php';
 
 /**
  * Tests that unlocks granted via Google Extended Access are honored by the
@@ -28,6 +29,8 @@ require_once dirname( __FILE__ ) . '/utils/class-plugin-manager.php';
  * at-sign in this docblock - PHPUnit parses it from prose.)
  */
 class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
+
+	use Newspack_Hook_Snapshot;
 
 	/**
 	 * The Newspack plugin release the suite is verified against. Pinned so the
@@ -66,6 +69,12 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 		// The plugin loaded after the bootstrap fired 'init'; fire it again so
 		// init-dependent registrations (e.g. default access rules) run.
 		do_action( 'init' );
+
+		// The Newspack plugin's hooks were registered just now, so let the next
+		// set_up() re-take the snapshot tear_down() restores from - otherwise
+		// they are stripped after this class's first test whenever another test
+		// class ran first. See the trait for the full mechanism.
+		self::reset_hook_snapshot();
 
 		// Enable the Access Control feature flag. Content_Gate re-reads the
 		// constant on every call when IS_TEST_ENV is defined.
