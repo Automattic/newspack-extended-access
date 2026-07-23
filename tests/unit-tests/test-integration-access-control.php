@@ -504,6 +504,46 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 	}
 
 	/**
+	 * On an Access Control site (WCM inactive) with no client ID configured,
+	 * the admin notice links to the standalone settings page - the reachable
+	 * surface - rather than the unreachable wc-settings Memberships tab.
+	 */
+	public function test_missing_client_id_notice_links_to_settings_page() {
+		delete_option( 'newspack_extended_access__google_client_api_id' );
+
+		ob_start();
+		Initializer::show_admin_notice__error();
+		$notice_html = ob_get_clean();
+
+		$this->assertStringContainsString(
+			'options-general.php?page=' . \Newspack\ExtendedAccess\Admin_Settings::PAGE_SLUG,
+			$notice_html,
+			'The missing-client-ID notice must link to the standalone settings page.'
+		);
+		$this->assertStringNotContainsString(
+			'wc-settings',
+			$notice_html,
+			'The notice must not point at the WooCommerce settings tab when WCM is inactive.'
+		);
+	}
+
+	/**
+	 * The missing-client-ID notice is suppressed on the settings page itself,
+	 * where it would only point back at the page the admin is already on.
+	 */
+	public function test_missing_client_id_notice_suppressed_on_settings_page() {
+		delete_option( 'newspack_extended_access__google_client_api_id' );
+
+		set_current_screen( 'settings_page_' . \Newspack\ExtendedAccess\Admin_Settings::PAGE_SLUG );
+		ob_start();
+		Initializer::show_admin_notice__error();
+		$notice_html = ob_get_clean();
+		set_current_screen( 'front' );
+
+		$this->assertSame( '', $notice_html, 'No notice must render on the Extended Access settings page itself.' );
+	}
+
+	/**
 	 * The LD+JSON schema reports a gated post as not accessible for free.
 	 */
 	public function test_ld_json_marks_gated_post_as_not_free() {
