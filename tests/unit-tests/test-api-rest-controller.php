@@ -8,6 +8,28 @@
 use Newspack\ExtendedAccess;
 
 require_once dirname( __FILE__ ) . '/utils/class-plugin-manager.php';
+require_once dirname( __FILE__ ) . '/utils/trait-hook-snapshot.php';
+
+// `DependencyChecker::is_wc_memberships_loaded()` probes for `wc_memberships()`,
+// so the access check below is only reached when this exists. It is never
+// dereferenced in this suite — the one call site that does
+// (`SinglePost_Subscription`) is exercised by the Access Control suite, which
+// runs as its own process and must keep seeing Memberships as inactive.
+if ( ! function_exists( 'wc_memberships' ) ) {
+	function wc_memberships() {
+		return null;
+	}
+}
+
+// Restriction lookup behind the LD+JSON schema. Reached because the stub above
+// makes Memberships look loaded, so it has to answer or `wp_head` fatals.
+// Toggled per-test via $GLOBALS['newspack_ea_test_post_content_restricted'].
+if ( ! function_exists( 'wc_memberships_is_post_content_restricted' ) ) {
+	// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter -- signature must match WC Memberships'.
+	function wc_memberships_is_post_content_restricted( $post = null ) {
+		return ! empty( $GLOBALS['newspack_ea_test_post_content_restricted'] );
+	}
+}
 
 // Provide a controllable stub for WC Memberships' access check so tests can
 // exercise the SUBSCRIBER code path without installing the (paid) plugin.
@@ -65,6 +87,9 @@ if ( ! function_exists( 'wc_memberships_get_user_active_memberships' ) ) {
  * Tests REST API Controller.
  */
 class Newspack_Test_API_Controller extends WP_UnitTestCase {
+
+	use Newspack_Hook_Snapshot;
+
 	/**
 	 * Plugin slug/folder.
 	 *
@@ -76,10 +101,14 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	 * Setup for the tests.
 	 */
 	public static function set_up_before_class() {
-		// Install and activate Dependency Plugins.
-		$newspack_rel_latest = 'https://github.com/Automattic/newspack-plugin/releases/latest/download/newspack-plugin.zip';
+		// Install and activate Dependency Plugins. The Newspack plugin release
+		// is pinned so the harness does not float with `releases/latest`; a
+		// previously downloaded copy in the test WP install takes precedence
+		// (Plugin_Manager::install skips existing directories), so delete it
+		// when bumping the pin.
+		$newspack_release_zip = 'https://github.com/Automattic/newspack-plugin/releases/download/v6.42.3/newspack-plugin.zip';
 		echo esc_html( 'Installing Newspack...' . PHP_EOL );
-		\Newspack\ExtendedAccess\Plugin_Manager::install( $newspack_rel_latest );
+		\Newspack\ExtendedAccess\Plugin_Manager::install( $newspack_release_zip );
 
 		echo esc_html( 'Activating Newspack...' . PHP_EOL );
 		\Newspack\ExtendedAccess\Plugin_Manager::activate( 'newspack-plugin' );
@@ -87,6 +116,12 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		echo esc_html( 'Initializing Newspack for test...' . PHP_EOL );
 		\Newspack\Data_Events\Webhooks::init();
 		do_action( 'init' );
+
+		// The Newspack plugin's hooks were registered just now, so let the next
+		// set_up() re-take the snapshot tear_down() restores from - otherwise
+		// they are stripped after this class's first test whenever another test
+		// class ran first. See the trait for the full mechanism.
+		self::reset_hook_snapshot();
 
 		echo esc_html( 'Initializing testing...' . PHP_EOL );
 	}

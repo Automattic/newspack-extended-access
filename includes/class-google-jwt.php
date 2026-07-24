@@ -181,7 +181,7 @@ class Google_Jwt {
 		// and a token issued for a different app could still carry the expected `azp`.
 		// Per RFC 7519 `aud` is either a single string or an array of strings, so
 		// accept both shapes.
-		$google_client_api_id = get_option( 'newspack_extended_access__google_client_api_id', '' );
+		$google_client_api_id = get_option( Admin_Settings::GOOGLE_CLIENT_API_ID_OPTION, '' );
 		$token_audiences      = isset( $decoded->aud ) ? (array) $decoded->aud : array();
 		if ( '' === $google_client_api_id || ! in_array( $google_client_api_id, $token_audiences, true ) ) {
 			return new \WP_Error( 'newspack_extended_access_google_token', __( 'Invalid token audience.', 'newspack-extended-access' ), array( 'status' => 403 ) );

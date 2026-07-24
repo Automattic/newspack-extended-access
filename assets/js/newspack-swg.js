@@ -55,11 +55,16 @@ function initGaaMetering() {
 		() => {
 			GaaMetering.getLoginPromise().then(
 				() => {
-					// Capture full URL, including URL parameters, to redirect the user to after login
-					const redirectUri = encodeURIComponent(window.location.href);
-					// Redirect to a login page for existing users to login.
+					// Capture the full URL, including query parameters, to return the reader to
+					// after login. The Extended Access parameters live there and not in the
+					// permalink, so dropping them leaves the flow unable to resume.
+					const loginUrl = new URL(authenticationSettings.myAccountURL, window.location.origin);
 					// 'redirect' param is used by newspack plugin's reader-activation to prepare auth callback URL.
-					window.location = `${authenticationSettings.myAccountURL}?redirect=${redirectUri}`;
+					loginUrl.searchParams.set('redirect', window.location.href);
+					// 'redirect_to' is what wp-login.php honours, on sites with no My Account page.
+					loginUrl.searchParams.set('redirect_to', window.location.href);
+					// Redirect to a login page for existing users to login.
+					window.location = loginUrl.toString();
 				}
 			);
 		}

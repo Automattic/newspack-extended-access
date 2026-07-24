@@ -17,7 +17,10 @@
     ]
   },
   "scripts": {
-    "test": "phpunit"
+    "test": [
+      "phpunit --testsuite 'Newspack Test Suite'",
+      "phpunit --testsuite 'Access Control Integration'"
+    ]
   },
   "config": {
     "allow-plugins": {
