@@ -191,13 +191,24 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$response_data = $this->server->dispatch( $request )->get_data();
 		$user_state_id = $response_data['id'];
 
-		$this->assertStringNotContainsString( (string) $this->reader, $user_state_id, 'The derived id must not embed the WP user ID.' );
-		$this->assertNotEquals( 'wp_' . $this->reader, base64_decode( $user_state_id ), 'The derived id must not be a reversible encoding of the WP user ID.' );
+		// Not the user ID, and not any reversible encoding of it. Note that a
+		// substring check on the ID's digits would be meaningless here: a hex
+		// digest of a single-digit user ID contains that digit about nine times
+		// out of ten, so such an assertion passes or fails by luck.
+		$this->assertNotEquals( 'wp_' . $this->reader, $user_state_id, 'The derived id must not be the plain WP user ID.' );
+		$this->assertNotEquals( base64_encode( 'wp_' . $this->reader ), $user_state_id, 'The derived id must not be a base64 encoding of the WP user ID.' );
+		$this->assertNotEquals( 'wp_' . $this->reader, base64_decode( $user_state_id ), 'The derived id must not decode back to the WP user ID.' );
+		$this->assertMatchesRegularExpression( '/^wp_[0-9a-f]{32}$/', $user_state_id, 'The derived id should be a keyed digest.' );
 
 		// Stable: a second request for the same reader yields the same id, so
 		// Google can still correlate the reader across visits.
 		$second_response_data = $this->server->dispatch( new WP_REST_Request( 'GET', $this->api_namespace . '/login/status' ) )->get_data();
 		$this->assertEquals( $user_state_id, $second_response_data['id'], 'The derived id must be stable for a given reader.' );
+
+		// Distinct per reader, so Google cannot conflate two readers.
+		wp_set_current_user( $this->subscriber );
+		$other_response_data = $this->server->dispatch( new WP_REST_Request( 'GET', $this->api_namespace . '/login/status' ) )->get_data();
+		$this->assertNotEquals( $user_state_id, $other_response_data['id'], 'Two readers must not share a derived id.' );
 	}
 
 	/**
