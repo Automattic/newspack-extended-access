@@ -29,6 +29,7 @@ class Initializer {
 		// Initialize non-dependency classes.
 		WooCommerce::init();
 		WC_Settings_Memberships_Option_Tab::init();
+		Admin_Settings::init();
 
 		// Defer the dependency-gated initialization until all plugins are
 		// loaded: the Newspack Access Control classes belong to the Newspack
@@ -67,6 +68,13 @@ class Initializer {
 	 * Displays admin notice summarizing error.
 	 */
 	public static function show_admin_notice__error() {
+		// The settings page is where the missing configuration gets fixed; a
+		// notice pointing back at it would be noise there.
+		$current_screen = function_exists( 'get_current_screen' ) ? get_current_screen() : null;
+		if ( $current_screen && 'settings_page_' . Admin_Settings::PAGE_SLUG === $current_screen->id ) {
+			return;
+		}
+
 		$plugin_notice = '';
 		$allowed_html  = array(
 			'a'    => array(
@@ -82,9 +90,11 @@ class Initializer {
 			if ( DependencyChecker::is_wc_memberships_stack_active() ) {
 				$plugin_notice = '<b>Newspack Extended Access</b> plugin requires <b>Google Client API ID</b> to be configured. Please check your <b>Google Client API ID</b> into <a href="' . esc_url( admin_url( 'admin.php?page=wc-settings&tab=memberships&section=newspack-extended-access' ) ) . '">Newspack Extended Access Settings</a>.';
 			} else {
-				// Without WooCommerce Memberships there is no settings screen for
-				// this option; point at the option itself until one exists.
-				$plugin_notice = '<b>Newspack Extended Access</b> plugin requires <b>Google Client API ID</b> to be configured. Set the <code>newspack_extended_access__google_client_api_id</code> option to your Google Client API ID, e.g. via WP-CLI: <code>wp option update newspack_extended_access__google_client_api_id your-client-id.apps.googleusercontent.com</code>.';
+				$plugin_notice = sprintf(
+					/* translators: %s: URL of the Extended Access settings page. */
+					__( '<b>Newspack Extended Access</b> plugin requires <b>Google Client API ID</b> to be configured. Please add your <b>Google Client API ID</b> in <a href="%s">Extended Access Settings</a>.', 'newspack-extended-access' ),
+					esc_url( Admin_Settings::get_settings_url() )
+				);
 			}
 		}
 

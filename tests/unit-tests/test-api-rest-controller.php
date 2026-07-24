@@ -8,10 +8,14 @@
 use Newspack\ExtendedAccess;
 
 require_once dirname( __FILE__ ) . '/utils/class-plugin-manager.php';
+require_once dirname( __FILE__ ) . '/utils/trait-hook-snapshot.php';
 /**
  * Tests REST API Controller.
  */
 class Newspack_Test_API_Controller extends WP_UnitTestCase {
+
+	use Newspack_Hook_Snapshot;
+
 	/**
 	 * Plugin slug/folder.
 	 *
@@ -38,6 +42,12 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		echo esc_html( 'Initializing Newspack for test...' . PHP_EOL );
 		\Newspack\Data_Events\Webhooks::init();
 		do_action( 'init' );
+
+		// The Newspack plugin's hooks were registered just now, so let the next
+		// set_up() re-take the snapshot tear_down() restores from - otherwise
+		// they are stripped after this class's first test whenever another test
+		// class ran first. See the trait for the full mechanism.
+		self::reset_hook_snapshot();
 
 		echo esc_html( 'Initializing testing...' . PHP_EOL );
 	}

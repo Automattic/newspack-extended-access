@@ -171,7 +171,7 @@ class Google_Jwt {
 
 		// Validate the token.
 		$token_api_id         = $decoded->azp;
-		$google_client_api_id = get_option( 'newspack_extended_access__google_client_api_id', '' );
+		$google_client_api_id = get_option( Admin_Settings::GOOGLE_CLIENT_API_ID_OPTION, '' );
 		if ( $token_api_id !== $google_client_api_id ) {
 			return new \WP_Error( 'newspack_extended_access_google_token', __( 'Invalid token', 'newspack-extended-access' ), array( 'status' => 403 ) );
 		}

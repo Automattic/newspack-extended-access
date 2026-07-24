@@ -159,7 +159,7 @@ class Google_ExtendedAccess {
 					'nonce'             => wp_create_nonce( 'wp_rest' ),
 					'allowedReferrers'  => $allowed_referrers,
 					'postID'            => get_the_ID(),
-					'googleClientApiID' => get_option( 'newspack_extended_access__google_client_api_id', '' ),
+					'googleClientApiID' => get_option( Admin_Settings::GOOGLE_CLIENT_API_ID_OPTION, '' ),
 					'myAccountURL'      => $my_account_url,
 				)
 			);

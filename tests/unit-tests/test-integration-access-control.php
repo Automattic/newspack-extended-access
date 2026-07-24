@@ -12,6 +12,7 @@ use Newspack\ExtendedAccess\REST_Controller;
 use Newspack\ExtendedAccess\SinglePost_Subscription;
 
 require_once dirname( __FILE__ ) . '/utils/class-plugin-manager.php';
+require_once dirname( __FILE__ ) . '/utils/trait-hook-snapshot.php';
 
 /**
  * Tests that unlocks granted via Google Extended Access are honored by the
@@ -28,6 +29,8 @@ require_once dirname( __FILE__ ) . '/utils/class-plugin-manager.php';
  * at-sign in this docblock - PHPUnit parses it from prose.)
  */
 class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
+
+	use Newspack_Hook_Snapshot;
 
 	/**
 	 * The Newspack plugin release the suite is verified against. Pinned so the
@@ -66,6 +69,12 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 		// The plugin loaded after the bootstrap fired 'init'; fire it again so
 		// init-dependent registrations (e.g. default access rules) run.
 		do_action( 'init' );
+
+		// The Newspack plugin's hooks were registered just now, so let the next
+		// set_up() re-take the snapshot tear_down() restores from - otherwise
+		// they are stripped after this class's first test whenever another test
+		// class ran first. See the trait for the full mechanism.
+		self::reset_hook_snapshot();
 
 		// Enable the Access Control feature flag. Content_Gate re-reads the
 		// constant on every call when IS_TEST_ENV is defined.
@@ -501,6 +510,46 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 			Initializer::has_valid_dependencies(),
 			'The Google Client API ID requirement still applies under Access Control.'
 		);
+	}
+
+	/**
+	 * On an Access Control site (WCM inactive) with no client ID configured,
+	 * the admin notice links to the standalone settings page - the reachable
+	 * surface - rather than the unreachable wc-settings Memberships tab.
+	 */
+	public function test_missing_client_id_notice_links_to_settings_page() {
+		delete_option( 'newspack_extended_access__google_client_api_id' );
+
+		ob_start();
+		Initializer::show_admin_notice__error();
+		$notice_html = ob_get_clean();
+
+		$this->assertStringContainsString(
+			'options-general.php?page=' . \Newspack\ExtendedAccess\Admin_Settings::PAGE_SLUG,
+			$notice_html,
+			'The missing-client-ID notice must link to the standalone settings page.'
+		);
+		$this->assertStringNotContainsString(
+			'wc-settings',
+			$notice_html,
+			'The notice must not point at the WooCommerce settings tab when WCM is inactive.'
+		);
+	}
+
+	/**
+	 * The missing-client-ID notice is suppressed on the settings page itself,
+	 * where it would only point back at the page the admin is already on.
+	 */
+	public function test_missing_client_id_notice_suppressed_on_settings_page() {
+		delete_option( 'newspack_extended_access__google_client_api_id' );
+
+		set_current_screen( 'settings_page_' . \Newspack\ExtendedAccess\Admin_Settings::PAGE_SLUG );
+		ob_start();
+		Initializer::show_admin_notice__error();
+		$notice_html = ob_get_clean();
+		set_current_screen( 'front' );
+
+		$this->assertSame( '', $notice_html, 'No notice must render on the Extended Access settings page itself.' );
 	}
 
 	/**
