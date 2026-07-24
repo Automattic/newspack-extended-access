@@ -48,40 +48,63 @@ class Google_ExtendedAccess {
 		if ( ! self::can_insert_frontend_markup() ) {
 			return;
 		}
-		// 'wc_memberships_is_post_content_restricted()' function will only available if WooCommerce Membership plugin is installed and active.
-		if ( function_exists( 'wc_memberships_is_post_content_restricted' ) ) {
-			// Add 'isAccessibleForFree' schema for compatibility with Google Extended Access.
-			$flags = ( JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
 
-			$url_parts = wp_parse_url( home_url() );
-			$domain    = str_replace( 'www.', '', $url_parts['host'] );
-
-			$ld_json = array(
-				'@context'            => 'https://schema.org',
-				'@type'               => 'Article',
-				'isAccessibleForFree' => ! wc_memberships_is_post_content_restricted(),
-				'isPartOf'            => array(
-					'@type'     => array( 'CreativeWork', 'Product' ),
-					'name'      => get_bloginfo( 'name' ),
-					'productID' => $domain . ':showcase',
-				),
-				'publisher'           => array(
-					'@type' => 'Organization',
-					'name'  => get_bloginfo( 'name' ),
-				),
-			);
-
-			$ld_json = wp_json_encode( $ld_json, $flags );
-			$ld_json = str_replace( "\n", PHP_EOL . "\t", $ld_json );
-			?>
-			<script type="application/ld+json" class="newspack-extended-access-schema">
-				<?php
-					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-					echo $ld_json;
-				?>
-			</script>
-			<?php
+		// Whether the post is covered by content gating rules, from whichever
+		// gating system is active. Stays null when no gating system can answer,
+		// in which case no schema is emitted at all: a wrong answer here tells
+		// Google that gated content is free.
+		$is_post_restricted = null;
+		if ( DependencyChecker::is_wc_memberships_loaded() ) {
+			$is_post_restricted = wc_memberships_is_post_content_restricted();
+		} elseif ( DependencyChecker::is_newspack_restriction_state_available() ) {
+			$is_post_restricted = \Newspack\Content_Gate::post_has_restrictions( get_the_ID() );
 		}
+
+		if ( null !== $is_post_restricted ) {
+			self::render_extended_access_ld_json( (bool) $is_post_restricted );
+		}
+	}
+
+	/**
+	 * Renders the LD+JSON schema for a known restriction state.
+	 *
+	 * Separate from the branching above so the schema's shape is exercised
+	 * independently of which gating system supplied the state.
+	 *
+	 * @param bool $is_post_restricted Whether the post is covered by gating rules.
+	 */
+	public static function render_extended_access_ld_json( bool $is_post_restricted ) {
+		// Add 'isAccessibleForFree' schema for compatibility with Google Extended Access.
+		$flags = ( JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+
+		$url_parts = wp_parse_url( home_url() );
+		$domain    = str_replace( 'www.', '', $url_parts['host'] );
+
+		$ld_json = array(
+			'@context'            => 'https://schema.org',
+			'@type'               => 'Article',
+			'isAccessibleForFree' => ! $is_post_restricted,
+			'isPartOf'            => array(
+				'@type'     => array( 'CreativeWork', 'Product' ),
+				'name'      => get_bloginfo( 'name' ),
+				'productID' => $domain . ':showcase',
+			),
+			'publisher'           => array(
+				'@type' => 'Organization',
+				'name'  => get_bloginfo( 'name' ),
+			),
+		);
+
+		$ld_json = wp_json_encode( $ld_json, $flags );
+		$ld_json = str_replace( "\n", PHP_EOL . "\t", $ld_json );
+		?>
+		<script type="application/ld+json" class="newspack-extended-access-schema">
+			<?php
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+				echo $ld_json;
+			?>
+		</script>
+		<?php
 	}
 
 	/**
@@ -118,6 +141,16 @@ class Google_ExtendedAccess {
 			$home_url_parts    = wp_parse_url( home_url() );
 			$allowed_referrers = array( $home_url_parts['host'] );
 
+			/*
+			 * The page the SwG script sends existing readers to for logging in:
+			 * WooCommerce's My Account when available, otherwise the WP login
+			 * URL. Both are handed over bare - the script appends the return
+			 * destination itself, from the live URL rather than the permalink,
+			 * so the Extended Access query args needed to resume the flow after
+			 * login survive the round trip.
+			 */
+			$my_account_url = function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'myaccount' ) : wp_login_url();
+
 			// Nonce for REST API.
 			wp_localize_script(
 				'newspack-swg',
@@ -127,7 +160,7 @@ class Google_ExtendedAccess {
 					'allowedReferrers'  => $allowed_referrers,
 					'postID'            => get_the_ID(),
 					'googleClientApiID' => get_option( 'newspack_extended_access__google_client_api_id', '' ),
-					'myAccountURL'      => wc_get_page_permalink( 'myaccount' )
+					'myAccountURL'      => $my_account_url,
 				)
 			);
 
