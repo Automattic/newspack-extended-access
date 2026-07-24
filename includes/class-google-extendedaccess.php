@@ -142,13 +142,14 @@ class Google_ExtendedAccess {
 			$allowed_referrers = array( $home_url_parts['host'] );
 
 			/*
-			 * The page the SwG script sends existing readers to for logging in.
-			 * WooCommerce's My Account when available (Newspack reader
-			 * activation handles the script's appended `redirect` param there);
-			 * otherwise the WP login URL with `redirect_to` pre-set to the
-			 * current article, so the reader returns to it after logging in.
+			 * The page the SwG script sends existing readers to for logging in:
+			 * WooCommerce's My Account when available, otherwise the WP login
+			 * URL. Both are handed over bare - the script appends the return
+			 * destination itself, from the live URL rather than the permalink,
+			 * so the Extended Access query args needed to resume the flow after
+			 * login survive the round trip.
 			 */
-			$my_account_url = function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'myaccount' ) : wp_login_url( get_permalink() );
+			$my_account_url = function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'myaccount' ) : wp_login_url();
 
 			// Nonce for REST API.
 			wp_localize_script(

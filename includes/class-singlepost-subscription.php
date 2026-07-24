@@ -34,6 +34,12 @@ class SinglePost_Subscription {
 		 * the inline gate, the overlay gate, Campaigns prompt suppression, and
 		 * the article_view activity suppression. Priority 20 runs after
 		 * Content_Restriction_Control (10) has computed the gate outcome.
+		 *
+		 * Newspack's Newsletters_Access shares priority 20. The order between
+		 * them does not matter because both only ever relax the predicate
+		 * (true to false) and never tighten it. A future callback at 20 that
+		 * tightens would make the outcome order-dependent, so anything added
+		 * here must preserve that relax-only invariant.
 		 */
 		add_filter( 'newspack_is_post_restricted', [ __CLASS__, 'maybe_unrestrict_unlocked_post' ], 20, 2 );
 

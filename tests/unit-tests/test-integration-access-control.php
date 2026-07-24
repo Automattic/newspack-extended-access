@@ -92,11 +92,16 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 	public function tear_down() {
 		// phpcs:disable WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
 		unset( $_COOKIE[ REST_Controller::get_unlock_cookie_name( $this->post_id, $this->reader_id ) ] );
-		unset( $_COOKIE[ REST_Controller::get_unlock_cookie_name( $this->post_id, $this->reader_id + 1 ) ] );
 		// phpcs:enable
 		foreach ( \Newspack\Content_Gate::get_gates() as $gate ) {
 			wp_delete_post( $gate['id'], true );
 		}
+		// The stand-in for the Access Control implementation names a method the
+		// pinned Newspack release does not have, so a test that leaves it
+		// registered would fatal any later test that fires the filter. Removing
+		// it here rather than inline keeps that true even when a test fails
+		// partway through.
+		remove_filter( 'newspack_post_has_restrictions', DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK );
 		$this->reset_post_gates_cache();
 		wp_set_current_user( 0 );
 		parent::tear_down();
@@ -209,8 +214,16 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 	 */
 	public function test_no_fatal_without_woocommerce_memberships() {
 		$this->assertFalse( DependencyChecker::is_wc_memberships_loaded(), 'Precondition: WCM is not loaded in this suite.' );
+
 		SinglePost_Subscription::manage_paywall_restriction();
-		$this->assertTrue( true, 'manage_paywall_restriction() did not fatal without WCM.' );
+
+		// The handler's whole job under Access Control is to do nothing, so the
+		// observable outcome is that it removed no Woo Memberships hook and
+		// reaching this line at all means it did not fatal.
+		$this->assertFalse(
+			has_action( 'the_content', 'wc_memberships_the_content' ),
+			'No Woo Memberships content handler may be left registered when WCM is inactive.'
+		);
 	}
 
 	/**
@@ -259,12 +272,17 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 	 * for the current user.
 	 */
 	public function test_cookie_for_other_user_stays_restricted() {
+		$other_reader_id = self::factory()->user->create( [ 'role' => 'subscriber' ] );
 		wp_set_current_user( $this->reader_id );
-		$this->set_unlock_cookie( $this->post_id, $this->reader_id + 1 );
+
+		$this->set_unlock_cookie( $this->post_id, $other_reader_id );
+
 		$this->assertTrue(
 			apply_filters( 'newspack_is_post_restricted', true, $this->post_id ),
 			'An unlock minted for another user must not unlock the post.'
 		);
+		// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
+		unset( $_COOKIE[ REST_Controller::get_unlock_cookie_name( $this->post_id, $other_reader_id ) ] );
 	}
 
 	/**
@@ -395,6 +413,14 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 			$unlock_response->get_data()['status'],
 			'A reader whose only access is the unlock must be reported as UNLOCKED (metering grant), not SUBSCRIBER.'
 		);
+		// The gate evaluation above detaches the unlock filter to avoid reading a
+		// metered unlock as full access. Leaving it detached would silently stop
+		// lifting restrictions for the rest of the request, and set_up() re-runs
+		// init() for every test, so nothing else here would notice.
+		$this->assertNotFalse(
+			has_filter( 'newspack_is_post_restricted', [ SinglePost_Subscription::class, 'maybe_unrestrict_unlocked_post' ] ),
+			'The unlock filter must be restored after the gate access check.'
+		);
 	}
 
 	/**
@@ -500,6 +526,39 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 		$this->assertFalse(
 			DependencyChecker::is_newspack_restriction_state_available(),
 			'The restriction state stops being knowable when the implementation goes away.'
+		);
+	}
+
+	/**
+	 * The callback name is a cross-repo contract: if the Newspack plugin ever
+	 * renames or relocates its implementation, this plugin goes permanently
+	 * quiet with no other symptom. The test above cannot catch that - it
+	 * registers the same constant it then looks for - so assert the constant
+	 * against the real class.
+	 *
+	 * Skips while the pinned Newspack release predates the implementation, and
+	 * starts asserting the moment that pin moves past it.
+	 */
+	public function test_restriction_callback_constant_matches_the_newspack_implementation() {
+		list( $class_name, $method_name ) = DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK;
+
+		if ( ! method_exists( $class_name, $method_name ) ) {
+			$this->markTestSkipped(
+				sprintf(
+					'The pinned Newspack release has no %s::%s(). Once the pin moves past the content-gate implementation, this test asserts the contract instead of skipping.',
+					$class_name,
+					$method_name
+				)
+			);
+		}
+
+		$this->assertTrue(
+			is_callable( DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK ),
+			'The pinned callback must name a real, callable Newspack implementation.'
+		);
+		$this->assertNotFalse(
+			has_filter( 'newspack_post_has_restrictions', DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK ),
+			'The Newspack implementation must be registered under the exact callback identity this plugin looks for.'
 		);
 	}
 

@@ -66,19 +66,43 @@ class REST_Controller {
 		if ( ! $post_id || ! DependencyChecker::is_newspack_access_control_active() ) {
 			return false;
 		}
-		// The Access Control check evaluates the current session only.
+		/*
+		 * The Access Control check evaluates the current session only, so a
+		 * mismatch cannot be answered rather than denied. Every caller reaches
+		 * here after Reader_Activation::set_current_reader(), so this is loud
+		 * instead of a quiet denial: a caller that stops setting the current
+		 * reader would otherwise downgrade a genuine subscriber to a metered
+		 * single-article unlock with no visible symptom.
+		 */
 		if ( get_current_user_id() !== (int) $user_id ) {
+			_doing_it_wrong(
+				__METHOD__,
+				'The Access Control access check can only answer for the current user.',
+				'1.2.0'
+			);
 			return false;
 		}
 
 		/*
 		 * Evaluate the underlying gate access without the Extended Access unlock
 		 * filter: a metered unlock must not report as full (SUBSCRIBER) access.
+		 *
+		 * Restore exactly what was removed, at the priority it was registered at,
+		 * and do it in a finally: a gate access rule that throws must not leave
+		 * the front-end unlock lifting disabled for the rest of the request.
 		 */
-		remove_filter( 'newspack_is_post_restricted', array( SinglePost_Subscription::class, 'maybe_unrestrict_unlocked_post' ), 20 );
-		$can_view = ! \Newspack\Content_Gate::is_post_restricted( (int) $post_id );
-		add_filter( 'newspack_is_post_restricted', array( SinglePost_Subscription::class, 'maybe_unrestrict_unlocked_post' ), 20, 2 );
-		return $can_view;
+		$unlock_filter       = array( SinglePost_Subscription::class, 'maybe_unrestrict_unlocked_post' );
+		$registered_priority = has_filter( 'newspack_is_post_restricted', $unlock_filter );
+		if ( false !== $registered_priority ) {
+			remove_filter( 'newspack_is_post_restricted', $unlock_filter, $registered_priority );
+		}
+		try {
+			return ! \Newspack\Content_Gate::is_post_restricted( (int) $post_id );
+		} finally {
+			if ( false !== $registered_priority ) {
+				add_filter( 'newspack_is_post_restricted', $unlock_filter, $registered_priority, 2 );
+			}
+		}
 	}
 
 	/**

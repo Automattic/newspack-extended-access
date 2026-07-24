@@ -54,5 +54,9 @@ jobs:
       - name: Setup WordPress test environment
         run: bash bin/install-wp-tests.sh wordpress_test root '' 127.0.0.1 latest
 
+      # Runs each testsuite as its own process, which is what keeps the
+      # NEWSPACK_CONTENT_GATES define in the Access Control suite from leaking
+      # into a suite that asserts flag-off behaviour. A bare phpunit run would
+      # rely on suite ordering alone.
       - name: Run tests
-        run: vendor/bin/phpunit
+        run: composer test
