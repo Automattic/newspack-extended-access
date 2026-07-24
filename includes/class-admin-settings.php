@@ -45,7 +45,7 @@ class Admin_Settings {
 	public static function init() {
 		add_action( 'admin_menu', array( __CLASS__, 'register_settings_page' ) );
 		add_action( 'admin_init', array( __CLASS__, 'register_settings' ) );
-		add_filter( 'plugin_action_links_' . self::get_plugin_basename(), array( __CLASS__, 'add_settings_action_link' ) );
+		add_filter( 'plugin_action_links_' . self::get_plugin_basename(), array( __CLASS__, 'add_settings_action_link' ), 10, 1 );
 	}
 
 	/**
@@ -137,13 +137,15 @@ class Admin_Settings {
 		// The callback runs on every update of the option (it is hooked to
 		// sanitize_option_*), so the admin-only settings-error API may be
 		// unavailable, e.g. under WP-CLI.
-		if ( '' !== $value && ! filter_var( $value, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME ) && function_exists( 'add_settings_error' ) ) {
-			// The callback can run twice for a single save (when the option
-			// row does not exist yet, update_option falls through to
-			// add_option and the sanitizer runs again), so only add the
-			// warning if it is not already queued.
+		if ( '' !== $value && ! DependencyChecker::is_valid_client_id( $value ) && function_exists( 'add_settings_error' ) ) {
+			// The callback can run twice for a single save (when the option row
+			// does not exist yet, update_option falls through to add_option and
+			// the sanitizer runs again), so only warn if it is not already
+			// queued. The queue global is read directly rather than through
+			// get_settings_errors(), which deletes the settings_errors transient
+			// as a side effect on a request carrying settings-updated=true.
 			$already_warned = false;
-			foreach ( get_settings_errors( self::GOOGLE_CLIENT_API_ID_OPTION ) as $settings_error ) {
+			foreach ( $GLOBALS['wp_settings_errors'] ?? array() as $settings_error ) {
 				if ( 'invalid_google_client_api_id' === $settings_error['code'] ) {
 					$already_warned = true;
 					break;
@@ -172,13 +174,15 @@ class Admin_Settings {
 	 * Render the Google Client API ID field.
 	 */
 	public static function render_google_client_api_id_field() {
+		// A half-migrated install can have a malformed home URL, and a settings
+		// page that warns about PHP notices instead of rendering is worse than
+		// one that shows a slightly odd origin.
 		$home_url_parts    = wp_parse_url( home_url() );
-		$allowed_referrers = $home_url_parts['scheme'] . '://' . $home_url_parts['host'];
+		$allowed_referrers = ( $home_url_parts['scheme'] ?? 'https' ) . '://' . ( $home_url_parts['host'] ?? '' );
 		// A non-standard port is part of the origin Google must allow.
 		if ( ! empty( $home_url_parts['port'] ) ) {
 			$allowed_referrers .= ':' . $home_url_parts['port'];
 		}
-		$allowed_referrers = esc_url( $allowed_referrers );
 		?>
 		<input
 			type="text"
@@ -204,7 +208,10 @@ class Admin_Settings {
 					)
 				),
 				'https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid',
-				esc_url( $allowed_referrers )
+				// Rendered as text, not as an href, so it must survive verbatim:
+				// this is the exact string to paste into Google's Authorized
+				// JavaScript origins.
+				esc_html( $allowed_referrers )
 			);
 			?>
 		</p>
@@ -216,7 +223,7 @@ class Admin_Settings {
 	 */
 	public static function render_settings_page() {
 		if ( ! current_user_can( 'manage_options' ) ) {
-			return;
+			wp_die( esc_html__( 'Sorry, you are not allowed to access this page.', 'newspack-extended-access' ), 403 );
 		}
 		?>
 		<div class="wrap">

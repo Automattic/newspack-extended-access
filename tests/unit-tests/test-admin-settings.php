@@ -23,6 +23,12 @@ class Newspack_Test_Admin_Settings extends WP_UnitTestCase {
 		require_once ABSPATH . 'wp-admin/includes/template.php';
 		// Settings errors accumulate in a global that persists across tests.
 		$GLOBALS['wp_settings_errors'] = array();
+		// So does the admin menu, so a page registered by one test would still
+		// be found by the next one and mask a failed registration.
+		$GLOBALS['menu']              = array();
+		$GLOBALS['submenu']           = array();
+		$GLOBALS['_registered_pages'] = array();
+		$GLOBALS['_parent_pages']     = array();
 		delete_option( Admin_Settings::GOOGLE_CLIENT_API_ID_OPTION );
 	}
 
@@ -45,6 +51,36 @@ class Newspack_Test_Admin_Settings extends WP_UnitTestCase {
 			$settings_page_url,
 			'The URL the admin notice links to must be the registered page URL.'
 		);
+	}
+
+	/**
+	 * The page holds a credential for an authentication flow, so the capability
+	 * bar is part of its contract rather than an implementation detail. Locking
+	 * it down here means a later refactor that widens the capability, or drops
+	 * the guard in the render callback as "redundant with add_options_page",
+	 * cannot keep the suite green.
+	 */
+	public function test_settings_page_not_registered_for_non_admins() {
+		wp_set_current_user( $this->factory->user->create( array( 'role' => 'subscriber' ) ) );
+
+		Admin_Settings::register_settings_page();
+
+		$this->assertEmpty(
+			menu_page_url( Admin_Settings::PAGE_SLUG, false ),
+			'A reader-level user must not get the Extended Access settings page in their menu.'
+		);
+	}
+
+	/**
+	 * Rendering is guarded independently of the menu registration, so reaching
+	 * the page URL directly is refused rather than served.
+	 */
+	public function test_render_settings_page_refuses_non_admins() {
+		wp_set_current_user( $this->factory->user->create( array( 'role' => 'subscriber' ) ) );
+
+		$this->expectException( 'WPDieException' );
+
+		Admin_Settings::render_settings_page();
 	}
 
 	/**

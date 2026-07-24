@@ -69,7 +69,7 @@ class WC_Settings_Memberships_Option_Tab {
 
 				array(
 					'type'    => 'textarea',
-					'id'      => 'newspack_extended_access__google_client_api_id',
+					'id'      => \Newspack\ExtendedAccess\Admin_Settings::GOOGLE_CLIENT_API_ID_OPTION,
 					'name'    => __( 'Google Client API ID', 'newspack-extended-access' ),
 					'desc'    => $input_desc,
 					'default' => '',

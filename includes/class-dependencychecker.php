@@ -165,14 +165,26 @@ class DependencyChecker {
 	}
 
 	/**
-	 * Check whether Google Client API ID is valid or not.
+	 * Check whether a Google Client API ID looks valid.
+	 *
+	 * The single definition of "valid", so the settings page warns about
+	 * exactly the values that keep this plugin dormant. Tightening the rule
+	 * here tightens the warning with it, rather than letting the admin claim a
+	 * value is fine while the plugin refuses to initialize on it.
+	 *
+	 * @param string $client_id The Google Client API ID to check.
+	 * @return bool Return true if the ID is valid.
+	 */
+	public static function is_valid_client_id( string $client_id ): bool {
+		return (bool) filter_var( $client_id, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME );
+	}
+
+	/**
+	 * Check whether a valid Google Client API ID is stored.
 	 *
 	 * @return bool Return true if valid Google Client API ID is present.
 	 */
 	public static function is_valid_google_client_api_id(): bool {
-		if ( filter_var( get_option( 'newspack_extended_access__google_client_api_id', '' ), FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME ) ) {
-			return true;
-		}
-		return false;
+		return self::is_valid_client_id( (string) get_option( Admin_Settings::GOOGLE_CLIENT_API_ID_OPTION, '' ) );
 	}
 }
