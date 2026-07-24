@@ -48,6 +48,23 @@ class REST_Controller {
 	}
 
 	/**
+	 * Derive an opaque, stable userState `id` for a reader who has no Google
+	 * `sub` (i.e. registered through a channel other than Extended Access).
+	 *
+	 * Keyed with `wp_hash()` so the value is stable for a given user on a given
+	 * site but cannot be decoded back to the internal WordPress user ID. It is
+	 * tied to the site's auth salts, so rotating them re-issues the id and
+	 * Google sees the reader as new — an acceptable trade for not leaking an
+	 * enumerable user ID.
+	 *
+	 * @param int $user_id The user ID.
+	 * @return string Opaque identifier.
+	 */
+	private static function get_derived_user_state_id( $user_id ) {
+		return 'wp_' . wp_hash( 'newspack_extended_access_user_state|' . $user_id );
+	}
+
+	/**
 	 * Resolve the `subscriptionTimestamp` for the userState payload.
 	 *
 	 * Per the Extended Access spec this should reflect when the user became a
@@ -159,9 +176,11 @@ class REST_Controller {
 		$email = $token->email;
 
 		$existing_user = get_user_by( 'email', $email );
-		$post_id       = $request->get_header( 'X-WP-Post-ID' );
-		$user_id       = false;
-		$granted       = false;
+		// Normalise to an int so the unlock cookie name hashes identically
+		// everywhere it is written and read.
+		$post_id = absint( $request->get_header( 'X-WP-Post-ID' ) );
+		$user_id = false;
+		$granted = false;
 
 		if ( $existing_user ) {
 			$user_id = $existing_user->ID;
@@ -282,7 +301,11 @@ class REST_Controller {
 	 */
 	public static function api_verify_user( $request ) {
 		$logged_in_user = wp_get_current_user();
-		$post_id        = $request->get_header( 'X-WP-Post-ID' );
+		// Normalise to an int so the unlock cookie name hashes identically to the
+		// one `api_unlock_article()` sets — a non-canonical numeric header (e.g.
+		// "042") would otherwise produce a different hash and metering would
+		// never be detected.
+		$post_id = absint( $request->get_header( 'X-WP-Post-ID' ) );
 
 		// Anonymous visitor — Google should show the registration intervention.
 		if ( ! $logged_in_user || ! $logged_in_user->ID ) {
@@ -313,9 +336,11 @@ class REST_Controller {
 		// registered via Extended Access (so Google can correlate identities
 		// across visits); otherwise derive a stable id from the WP user ID so
 		// users who registered through other channels are still recognised as
-		// "registered users" instead of being treated as anonymous.
+		// "registered users" instead of being treated as anonymous. The derived
+		// id is a keyed hash rather than an encoding, so the internal user ID
+		// can't be recovered from the value we hand to Google.
 		$jwt_sub       = get_user_meta( $user_id, 'extended_access_sub', true );
-		$user_state_id = $jwt_sub ? base64_encode( $jwt_sub ) : base64_encode( 'wp_' . $user_id );
+		$user_state_id = $jwt_sub ? base64_encode( $jwt_sub ) : self::get_derived_user_state_id( $user_id );
 
 		// Subscriber: publisher membership grants access to the requested post.
 		$member_can_view_post = false;

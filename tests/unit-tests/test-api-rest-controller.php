@@ -153,7 +153,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$response      = $this->server->dispatch( $request );
 		$response_data = $response->get_data();
 
-		$this->assertFalse( false, $response_data['granted'], 'Anonymous user should not be granted.' );
+		$this->assertFalse( $response_data['granted'], 'Anonymous user should not be granted.' );
 	}
 
 	/**
@@ -176,6 +176,46 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$this->assertNotEmpty( $response_data['id'] );
 		$this->assertArrayHasKey( 'registrationTimestamp', $response_data, 'Logged-in users must expose `registrationTimestamp`.' );
 		$this->assertIsInt( $response_data['registrationTimestamp'] );
+	}
+
+	/**
+	 * The userState `id` handed to Google for a non-EA reader must be opaque:
+	 * stable across requests, but not decodable back to the internal WordPress
+	 * user ID (which is sequential and therefore enumerable).
+	 */
+	public function test_login_status__derived_id_does_not_leak_wp_user_id() {
+		wp_set_current_user( $this->reader );
+		delete_user_meta( $this->reader, 'extended_access_sub' );
+
+		$request       = new WP_REST_Request( 'GET', $this->api_namespace . '/login/status' );
+		$response_data = $this->server->dispatch( $request )->get_data();
+		$user_state_id = $response_data['id'];
+
+		$this->assertStringNotContainsString( (string) $this->reader, $user_state_id, 'The derived id must not embed the WP user ID.' );
+		$this->assertNotEquals( 'wp_' . $this->reader, base64_decode( $user_state_id ), 'The derived id must not be a reversible encoding of the WP user ID.' );
+
+		// Stable: a second request for the same reader yields the same id, so
+		// Google can still correlate the reader across visits.
+		$second_response_data = $this->server->dispatch( new WP_REST_Request( 'GET', $this->api_namespace . '/login/status' ) )->get_data();
+		$this->assertEquals( $user_state_id, $second_response_data['id'], 'The derived id must be stable for a given reader.' );
+	}
+
+	/**
+	 * The unlock cookie name is hashed from the post ID, so a non-canonical
+	 * numeric `X-WP-Post-ID` header (e.g. "042" or " 42") must normalise to the
+	 * same value the unlock endpoint used — otherwise a granted metering cookie
+	 * would never be found again.
+	 */
+	public function test_login_status__non_canonical_post_id_header_still_resolves_metering() {
+		wp_set_current_user( $this->reader );
+		delete_user_meta( $this->reader, 'extended_access_sub' );
+
+		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/login/status' );
+		$request->set_header( 'X-WP-Post-ID', '0' . $this->post );
+		$response_data = $this->server->dispatch( $request )->get_data();
+
+		$this->assertTrue( $response_data['granted'], 'A zero-padded post ID header must resolve to the same unlock cookie.' );
+		$this->assertEquals( 'METERING', $response_data['grantReason'] );
 	}
 
 	/**

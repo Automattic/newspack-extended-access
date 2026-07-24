@@ -42,6 +42,13 @@ function initGaaMetering() {
 	const allowedReferrers = authenticationSettings.allowedReferrers;
 
 	/**
+	 * Base URL for this plugin's REST namespace, localized from `rest_url()` so
+	 * it carries the site's port, subdirectory and permalink structure. Always
+	 * ends with a slash.
+	 */
+	const restURL = authenticationSettings.restURL;
+
+	/**
 	 * Login Existing User Promise callback handler.
 	 */
 	handleLoginPromise = new Promise(
@@ -70,7 +77,7 @@ function initGaaMetering() {
 					// return the userState for the newly registered user.
 
 					fetch(
-						`${window.location.protocol}//${window.location.hostname}/wp-json/newspack-extended-access/v1/google/register`,
+						`${restURL}google/register`,
 						{
 							cache: 'no-store',
 							method: 'POST',
@@ -122,7 +129,7 @@ function initGaaMetering() {
 	getUserState = new Promise(
 		(resolve) => {
 			fetch(
-				`${window.location.protocol}//${window.location.hostname}/wp-json/newspack-extended-access/v1/login/status`,
+				`${restURL}login/status`,
 				{
 					cache: 'no-store',
 					method: 'GET',
@@ -151,7 +158,7 @@ function initGaaMetering() {
 	 */
 	unlockArticle = () => {
 		fetch(
-			`${window.location.protocol}//${window.location.hostname}/wp-json/newspack-extended-access/v1/unlock-article`,
+			`${restURL}unlock-article`,
 			{
 				cache: 'no-store',
 				method: 'POST',

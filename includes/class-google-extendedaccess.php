@@ -10,7 +10,7 @@ namespace Newspack\ExtendedAccess;
 
 use Newspack;
 
-define( 'NEWSPACK_SWG_SCRIPT_VERSION', '1.0.2' );
+define( 'NEWSPACK_SWG_SCRIPT_VERSION', '1.0.3' );
 
 /**
  * Registers required scripts for SwG implementation
@@ -132,6 +132,10 @@ class Google_ExtendedAccess {
 				'postID'            => get_the_ID(),
 				'googleClientApiID' => get_option( 'newspack_extended_access__google_client_api_id', '' ),
 				'myAccountURL'      => wc_get_page_permalink( 'myaccount' ),
+				// Built with `rest_url()` so the script works on installs served
+				// from a subdirectory, a non-standard port, or with plain
+				// permalinks (where REST lives under `?rest_route=`).
+				'restURL'           => esc_url_raw( rest_url( REST_Controller::NAMESPACE . '/' ) ),
 			)
 		);
 
