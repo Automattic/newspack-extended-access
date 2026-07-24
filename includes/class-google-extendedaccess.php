@@ -50,47 +50,61 @@ class Google_ExtendedAccess {
 		}
 
 		// Whether the post is covered by content gating rules, from whichever
-		// gating system is active.
+		// gating system is active. Stays null when no gating system can answer,
+		// in which case no schema is emitted at all: a wrong answer here tells
+		// Google that gated content is free.
 		$is_post_restricted = null;
 		if ( DependencyChecker::is_wc_memberships_loaded() ) {
 			$is_post_restricted = wc_memberships_is_post_content_restricted();
-		} elseif ( DependencyChecker::is_newspack_access_control_active() ) {
+		} elseif ( DependencyChecker::is_newspack_restriction_state_available() ) {
 			$is_post_restricted = \Newspack\Content_Gate::post_has_restrictions( get_the_ID() );
 		}
 
 		if ( null !== $is_post_restricted ) {
-			// Add 'isAccessibleForFree' schema for compatibility with Google Extended Access.
-			$flags = ( JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
-
-			$url_parts = wp_parse_url( home_url() );
-			$domain    = str_replace( 'www.', '', $url_parts['host'] );
-
-			$ld_json = array(
-				'@context'            => 'https://schema.org',
-				'@type'               => 'Article',
-				'isAccessibleForFree' => ! $is_post_restricted,
-				'isPartOf'            => array(
-					'@type'     => array( 'CreativeWork', 'Product' ),
-					'name'      => get_bloginfo( 'name' ),
-					'productID' => $domain . ':showcase',
-				),
-				'publisher'           => array(
-					'@type' => 'Organization',
-					'name'  => get_bloginfo( 'name' ),
-				),
-			);
-
-			$ld_json = wp_json_encode( $ld_json, $flags );
-			$ld_json = str_replace( "\n", PHP_EOL . "\t", $ld_json );
-			?>
-			<script type="application/ld+json" class="newspack-extended-access-schema">
-				<?php
-					// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
-					echo $ld_json;
-				?>
-			</script>
-			<?php
+			self::render_extended_access_ld_json( (bool) $is_post_restricted );
 		}
+	}
+
+	/**
+	 * Renders the LD+JSON schema for a known restriction state.
+	 *
+	 * Separate from the branching above so the schema's shape is exercised
+	 * independently of which gating system supplied the state.
+	 *
+	 * @param bool $is_post_restricted Whether the post is covered by gating rules.
+	 */
+	public static function render_extended_access_ld_json( bool $is_post_restricted ) {
+		// Add 'isAccessibleForFree' schema for compatibility with Google Extended Access.
+		$flags = ( JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE );
+
+		$url_parts = wp_parse_url( home_url() );
+		$domain    = str_replace( 'www.', '', $url_parts['host'] );
+
+		$ld_json = array(
+			'@context'            => 'https://schema.org',
+			'@type'               => 'Article',
+			'isAccessibleForFree' => ! $is_post_restricted,
+			'isPartOf'            => array(
+				'@type'     => array( 'CreativeWork', 'Product' ),
+				'name'      => get_bloginfo( 'name' ),
+				'productID' => $domain . ':showcase',
+			),
+			'publisher'           => array(
+				'@type' => 'Organization',
+				'name'  => get_bloginfo( 'name' ),
+			),
+		);
+
+		$ld_json = wp_json_encode( $ld_json, $flags );
+		$ld_json = str_replace( "\n", PHP_EOL . "\t", $ld_json );
+		?>
+		<script type="application/ld+json" class="newspack-extended-access-schema">
+			<?php
+				// phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+				echo $ld_json;
+			?>
+		</script>
+		<?php
 	}
 
 	/**

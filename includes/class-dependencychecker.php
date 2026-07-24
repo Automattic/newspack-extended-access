@@ -110,6 +110,41 @@ class DependencyChecker {
 	}
 
 	/**
+	 * The Access Control implementation of `newspack_post_has_restrictions`.
+	 *
+	 * Held as a constant so the runtime check below and the tests that assert
+	 * it stay in sync. Spelled without a leading backslash to match the id WP
+	 * builds for the registered callback.
+	 *
+	 * @var array
+	 */
+	const NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK = array( 'Newspack\Content_Restriction_Control', 'post_has_restrictions' );
+
+	/**
+	 * Check whether Access Control can answer whether a post is gated at all.
+	 *
+	 * `Content_Gate::post_has_restrictions()` is a thin wrapper over the
+	 * `newspack_post_has_restrictions` filter and returns false whenever
+	 * nothing answers it, which is indistinguishable from a genuinely ungated
+	 * post. Reading the LD+JSON schema off that default would advertise every
+	 * gated article as accessible for free, so callers skip the schema
+	 * entirely rather than emit a wrong answer.
+	 *
+	 * The Access Control implementation is looked for by name because the
+	 * Woo Memberships one registers on the same filter unconditionally - it
+	 * passes its input straight through when Memberships is inactive, so a
+	 * bare `has_filter()` is true on every site and proves nothing. If that
+	 * callback is ever renamed this check goes false and the schema is
+	 * omitted, which is the safe direction to fail in.
+	 *
+	 * @return bool Return true if the restriction state is knowable.
+	 */
+	public static function is_newspack_restriction_state_available(): bool {
+		return self::is_newspack_access_control_active()
+			&& false !== has_filter( 'newspack_post_has_restrictions', self::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK );
+	}
+
+	/**
 	 * Check whether the WooCommerce Memberships gating stack is fully active.
 	 *
 	 * @return bool Return true if WooCommerce and WooCommerce Memberships are installed and active.

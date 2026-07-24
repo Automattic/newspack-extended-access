@@ -452,34 +452,91 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 	}
 
 	/**
-	 * The LD+JSON schema is emitted under Access Control, with
-	 * isAccessibleForFree reflecting the post's gating.
+	 * The LD+JSON schema reports a gated post as not accessible for free.
 	 */
-	public function test_ld_json_under_access_control() {
+	public function test_ld_json_marks_gated_post_as_not_free() {
 		$this->go_to( get_permalink( $this->post_id ) );
 
-		// Simulate a post covered by a content gate.
-		add_filter( 'newspack_post_has_restrictions', '__return_true' );
 		ob_start();
-		Google_ExtendedAccess::add_extended_access_ld_json();
+		Google_ExtendedAccess::render_extended_access_ld_json( true );
 		$output = ob_get_clean();
-		remove_filter( 'newspack_post_has_restrictions', '__return_true' );
 
-		$this->assertStringContainsString( 'newspack-extended-access-schema', $output, 'The LD+JSON schema must be emitted under Access Control.' );
+		$this->assertStringContainsString( 'newspack-extended-access-schema', $output, 'The LD+JSON schema must be emitted.' );
 		$this->assertStringContainsString( '"isAccessibleForFree":false', $output, 'A gated post must be marked not accessible for free.' );
 	}
 
 	/**
 	 * The LD+JSON schema marks ungated posts as accessible for free.
 	 */
-	public function test_ld_json_ungated_post_is_free() {
+	public function test_ld_json_marks_ungated_post_as_free() {
 		$this->go_to( get_permalink( $this->post_id ) );
+
+		ob_start();
+		Google_ExtendedAccess::render_extended_access_ld_json( false );
+		$output = ob_get_clean();
+
+		$this->assertStringContainsString( 'newspack-extended-access-schema', $output, 'The LD+JSON schema must be emitted.' );
+		$this->assertStringContainsString( '"isAccessibleForFree":true', $output, 'An ungated post must be marked accessible for free.' );
+	}
+
+	/**
+	 * The restriction state becomes knowable as soon as the Access Control
+	 * implementation registers on the filter.
+	 *
+	 * Only the predicate is exercised: the stand-in callback names a method
+	 * the pinned Newspack release does not carry, so firing the filter would
+	 * fatal. What the predicate reads is the registration, not the result.
+	 */
+	public function test_restriction_state_available_once_access_control_implements_the_filter() {
+		add_filter( 'newspack_post_has_restrictions', DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK );
+
+		$this->assertTrue(
+			DependencyChecker::is_newspack_restriction_state_available(),
+			'The restriction state is knowable once the Access Control implementation is registered.'
+		);
+
+		remove_filter( 'newspack_post_has_restrictions', DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK );
+
+		$this->assertFalse(
+			DependencyChecker::is_newspack_restriction_state_available(),
+			'The restriction state stops being knowable when the implementation goes away.'
+		);
+	}
+
+	/**
+	 * `Content_Gate::post_has_restrictions()` returns a filtered default of
+	 * false, so a Newspack build that does not yet answer
+	 * `newspack_post_has_restrictions` for content gates reports every post as
+	 * ungated. Emitting the schema off that default would tell Google that
+	 * gated articles are free, so no schema is emitted until the Access
+	 * Control implementation is present. This decouples the plugin's release
+	 * from the Newspack plugin's: EA may be deployed to an Access Control site
+	 * ahead of the implementation without mislabeling gated content.
+	 *
+	 * The pinned Newspack release predates that implementation, so this test
+	 * exercises the real "too early" state rather than a simulated one.
+	 */
+	public function test_ld_json_skipped_when_restriction_state_is_unknowable() {
+		$this->go_to( get_permalink( $this->post_id ) );
+
+		$this->assertNotFalse(
+			has_filter( 'newspack_post_has_restrictions' ),
+			'Guards the reason the check is by name: Woo Memberships registers on this filter even with Memberships inactive, so a bare has_filter() would wrongly report the state as knowable.'
+		);
+		$this->assertFalse(
+			has_filter( 'newspack_post_has_restrictions', DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK ),
+			'Guards the premise: the pinned Newspack release must not carry the Access Control implementation, or this test proves nothing.'
+		);
+		$this->assertFalse(
+			DependencyChecker::is_newspack_restriction_state_available(),
+			'The restriction state is not knowable without the Access Control implementation of the filter.'
+		);
 
 		ob_start();
 		Google_ExtendedAccess::add_extended_access_ld_json();
 		$output = ob_get_clean();
 
-		$this->assertStringContainsString( 'newspack-extended-access-schema', $output, 'The LD+JSON schema must be emitted under Access Control.' );
-		$this->assertStringContainsString( '"isAccessibleForFree":true', $output, 'An ungated post must be marked accessible for free.' );
+		$this->assertStringNotContainsString( 'newspack-extended-access-schema', $output, 'No schema may be emitted when the restriction state is unknowable.' );
 	}
+
 }
