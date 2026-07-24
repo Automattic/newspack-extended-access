@@ -44,6 +44,16 @@ class SinglePost_Subscription {
 		add_filter( 'newspack_is_post_restricted', [ __CLASS__, 'maybe_unrestrict_unlocked_post' ], 20, 2 );
 
 		/*
+		 * Access Control truncates gated posts in feeds whenever its
+		 * restrict_feeds setting is on, and that setting defaults to on. Google
+		 * News has to ingest the full article for Extended Access to ever be
+		 * offered on it, so feeds are exempted here for the same reason the Woo
+		 * Memberships path disables wc_memberships_is_feed_restricted in
+		 * WooCommerce::init().
+		 */
+		add_filter( 'newspack_is_post_restricted', [ __CLASS__, 'unrestrict_feed_content' ], 20, 2 );
+
+		/*
 		 * The metering short-circuit is still needed on top of the predicate:
 		 * surfaces such as the metering countdown call Metering::is_metering()
 		 * before checking the predicate, and that call records the view against
@@ -88,6 +98,33 @@ class SinglePost_Subscription {
 			return $is_post_restricted;
 		}
 		if ( self::has_valid_unlock( $post_id ) ) {
+			return false;
+		}
+		return $is_post_restricted;
+	}
+
+	/**
+	 * Gated posts are not restricted inside feeds, so their full body stays
+	 * available for Google News to ingest. Ingestion is a prerequisite for
+	 * Extended Access ever being offered on the article, so this takes
+	 * precedence over the Access Control restrict_feeds setting, exactly as the
+	 * Woo Memberships path takes precedence over that plugin's feed
+	 * restriction.
+	 *
+	 * @param bool $is_post_restricted Whether the post is restricted for the current user.
+	 * @param int  $post_id            Post ID.
+	 * @return bool
+	 */
+	public static function unrestrict_feed_content( $is_post_restricted, $post_id ) {
+		if ( ! $is_post_restricted ) {
+			return $is_post_restricted;
+		}
+		// While Woo Memberships is loaded it owns the front-end, and its own
+		// feed stand-down already covers this.
+		if ( DependencyChecker::is_wc_memberships_loaded() ) {
+			return $is_post_restricted;
+		}
+		if ( is_feed() ) {
 			return false;
 		}
 		return $is_post_restricted;

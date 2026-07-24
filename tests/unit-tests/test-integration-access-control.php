@@ -396,6 +396,32 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 	}
 
 	/**
+	 * A gated post is not restricted inside a feed, so Google News can ingest
+	 * the full article. Without this, Access Control's restrict_feeds setting -
+	 * which is on by default - truncates the body to the gate excerpt and the
+	 * article stops being eligible for Extended Access entirely.
+	 */
+	public function test_gated_post_is_unrestricted_in_feeds() {
+		wp_set_current_user( 0 );
+
+		$this->assertTrue(
+			apply_filters( 'newspack_is_post_restricted', true, $this->post_id ),
+			'Outside a feed the gated post stays restricted.'
+		);
+
+		global $wp_query;
+		$was_feed          = $wp_query->is_feed;
+		$wp_query->is_feed = true;
+		$restricted_in_feed = apply_filters( 'newspack_is_post_restricted', true, $this->post_id );
+		$wp_query->is_feed = $was_feed;
+
+		$this->assertFalse(
+			$restricted_in_feed,
+			'A gated post must not be restricted inside a feed, or Google News cannot ingest it.'
+		);
+	}
+
+	/**
 	 * The unlock-article endpoint reports a metered unlock as UNLOCKED, not
 	 * SUBSCRIBER: holding an unlock cookie is not full gate access.
 	 */
