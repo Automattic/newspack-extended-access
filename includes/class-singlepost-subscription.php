@@ -183,7 +183,7 @@ class SinglePost_Subscription {
 			remove_filter( 'terms_clauses', array( $membership_instance, 'handle_terms_clauses' ), PHP_INT_MAX );
 		} elseif ( ! has_filter( 'wp', array( $membership_instance, 'handle_restriction_modes' ) ) ) {
 			// Add restriction for the user (user_id) if they are not present for the post(post_id).
-			add_action( 'wp', array( $membership_instance, 'handle_restriction_modes' ) );
+			add_action( 'wp', array( $membership_instance, 'handle_restriction_modes' ), 9 );
 			add_filter( 'the_posts', array( $membership_instance, 'exclude_restricted_content_comments' ), PHP_INT_MAX, 2 );
 			add_filter( 'pre_get_comments', array( $membership_instance, 'exclude_restricted_comments' ), PHP_INT_MAX );
 			add_filter( 'get_previous_post_where', array( $membership_instance, 'exclude_restricted_adjacent_posts' ), 1, 5 );
