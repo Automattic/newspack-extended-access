@@ -49,6 +49,49 @@ function initGaaMetering() {
 	const restURL = authenticationSettings.restURL;
 
 	/**
+	 * Calls one of this plugin's REST endpoints and returns its parsed body.
+	 *
+	 * Rejects on a non-2xx status so callers cannot mistake an error body for a
+	 * userState, and adopts the nonce each response carries. Both userState
+	 * endpoints re-issue the reader's session, which invalidates the nonce the
+	 * page was rendered with — without adopting the new one, every later call
+	 * fails its nonce check.
+	 *
+	 * @param {string} endpoint Endpoint path, relative to the plugin's REST namespace.
+	 * @param {Object} options Additional fetch options.
+	 * @returns {Promise<Object>} Parsed JSON body.
+	 */
+	function fetchFromRestAPI(endpoint, options = {}) {
+		return fetch(
+			`${restURL}${endpoint}`,
+			Object.assign(
+				{ cache: 'no-store', credentials: 'same-origin' },
+				options,
+				{
+					headers: Object.assign(
+						{
+							'X-WP-Nonce': authenticationSettings.nonce,
+							'X-WP-Post-ID': authenticationSettings.postID
+						},
+						options.headers || {}
+					)
+				}
+			)
+		).then(
+			response => {
+				const refreshedNonce = response.headers.get('X-WP-Nonce');
+				if (refreshedNonce) {
+					authenticationSettings.nonce = refreshedNonce;
+				}
+				if (!response.ok) {
+					throw new Error(`Extended Access request to ${endpoint} failed with status ${response.status}.`);
+				}
+				return response.json();
+			}
+		);
+	}
+
+	/**
 	 * Login Existing User Promise callback handler.
 	 */
 	handleLoginPromise = new Promise(
@@ -81,37 +124,30 @@ function initGaaMetering() {
 					// Send that information to your Registration endpoint to register the user and
 					// return the userState for the newly registered user.
 
-					fetch(
-						`${restURL}google/register`,
+					fetchFromRestAPI(
+						'google/register',
 						{
-							cache: 'no-store',
 							method: 'POST',
-							headers: {
-								'Content-type': 'text/plain',
-								'X-WP-Nonce': authenticationSettings.nonce,
-								'X-WP-Post-ID': authenticationSettings.postID
-							},
+							headers: { 'Content-type': 'text/plain' },
 							body: gaaUser.credential
 						}
 					)
-						.then(response => response.json())
 						.then(
 							userState => {
-								if (userState.grantReason === 'SUBSCRIBER') {
-									if (window.localStorage) {
-										if (localStorage.getItem('unlocked') && localStorage['unlocked'] === "true" && userState.granted === false) {
-											localStorage.removeItem('unlocked');
-										}
-									}
-								} else if (userState.grantReason === 'METERING') {
-									if (window.localStorage) {
-										if (userState.granted === true) {
-											localStorage['unlocked'] = true;
-											window.location.reload();	
-										}
-									}
+								// A metered grant is recorded as a server-side cookie, so the
+								// article only becomes readable on the next render.
+								if (userState.grantReason === 'METERING' && userState.granted === true) {
+									window.location.reload();
 								}
 								resolve(userState);
+							}
+						)
+						.catch(
+							error => {
+								console.error(error);
+								// Settle rather than hang: an unresolved promise leaves
+								// GaaMetering waiting forever with the regwall on screen.
+								resolve({ granted: false });
 							}
 						);
 				}
@@ -133,22 +169,18 @@ function initGaaMetering() {
 	 */
 	getUserState = new Promise(
 		(resolve) => {
-			fetch(
-				`${restURL}login/status`,
-				{
-					cache: 'no-store',
-					method: 'GET',
-					headers: {
-						'Content-type': 'text/plain',
-						'X-WP-Nonce': authenticationSettings.nonce,
-						'X-WP-Post-ID': authenticationSettings.postID
-					},
-				}
-			)
-				.then(response => response.json())
+			fetchFromRestAPI('login/status', { method: 'GET' })
 				.then(
 					userState => {
 						resolve(userState);
+					}
+				)
+				.catch(
+					error => {
+						console.error(error);
+						// Treat an unreachable status endpoint as "no grant": the
+						// paywall stays as the server rendered it.
+						resolve({ granted: false });
 					}
 				);
 		}
@@ -156,34 +188,22 @@ function initGaaMetering() {
 
 	/**
 	 * Fires when Google grants Extended Access — i.e. when the reader dismisses
-	 * the Extended Access CTA. We must record that grant server-side by hitting
-	 * /unlock-article (which sets a per-(user, post) cookie that
-	 * SinglePost_Subscription reads to lift the WC Memberships restriction),
-	 * then reload so the unrestricted page renders.
+	 * the Extended Access CTA. The grant is recorded server-side by hitting
+	 * /unlock-article, which sets a per-(user, post) cookie that
+	 * SinglePost_Subscription reads to lift the content gate.
 	 */
 	unlockArticle = () => {
-		fetch(
-			`${restURL}unlock-article`,
-			{
-				cache: 'no-store',
-				method: 'POST',
-				credentials: 'same-origin',
-				headers: {
-					'X-WP-Post-ID': authenticationSettings.postID,
-					'X-WP-Nonce': authenticationSettings.nonce
-				}
-			}
-		)
-			.then(response => response.json())
+		fetchFromRestAPI('unlock-article', { method: 'POST' })
 			.then(jsonData => {
-				// Reload for either response shape: UNLOCKED (metered grant
-				// recorded) or SUBSCRIBER (the user already has membership
-				// access, no cookie needed but a reload still ensures the EA
-				// CTA disappears on the next render).
-				if (jsonData.status === 'UNLOCKED' || jsonData.status === 'SUBSCRIBER') {
+				// Reload only on a first-time grant, which is the one case where
+				// the rendered page is now out of date. ALREADY_UNLOCKED and
+				// SUBSCRIBER describe a page that is already showing the article,
+				// so reloading on those would spin.
+				if (jsonData.status === 'UNLOCKED') {
 					window.location.reload();
 				}
-			});
+			})
+			.catch(error => console.error(error));
 	}
 
 	/**

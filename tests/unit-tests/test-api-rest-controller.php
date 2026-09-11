@@ -9,80 +9,9 @@ use Newspack\ExtendedAccess;
 
 require_once dirname( __FILE__ ) . '/utils/class-plugin-manager.php';
 require_once dirname( __FILE__ ) . '/utils/trait-hook-snapshot.php';
+require_once dirname( __FILE__ ) . '/utils/wc-memberships-stubs.php';
+require_once dirname( __FILE__ ) . '/utils/class-newspack-ea-test-membership-stub.php';
 
-// `DependencyChecker::is_wc_memberships_loaded()` probes for `wc_memberships()`,
-// so the access check below is only reached when this exists. It is never
-// dereferenced in this suite — the one call site that does
-// (`SinglePost_Subscription`) is exercised by the Access Control suite, which
-// runs as its own process and must keep seeing Memberships as inactive.
-if ( ! function_exists( 'wc_memberships' ) ) {
-	function wc_memberships() {
-		return null;
-	}
-}
-
-// Restriction lookup behind the LD+JSON schema. Reached because the stub above
-// makes Memberships look loaded, so it has to answer or `wp_head` fatals.
-// Toggled per-test via $GLOBALS['newspack_ea_test_post_content_restricted'].
-if ( ! function_exists( 'wc_memberships_is_post_content_restricted' ) ) {
-	// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter -- signature must match WC Memberships'.
-	function wc_memberships_is_post_content_restricted( $post = null ) {
-		return ! empty( $GLOBALS['newspack_ea_test_post_content_restricted'] );
-	}
-}
-
-// Provide a controllable stub for WC Memberships' access check so tests can
-// exercise the SUBSCRIBER code path without installing the (paid) plugin.
-// Behaviour is toggled per-test via the $GLOBALS['newspack_ea_test_wc_memberships_user_can'] flag.
-if ( ! function_exists( 'wc_memberships_user_can' ) ) {
-	// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter -- signature must match WC Memberships'.
-	function wc_memberships_user_can( $user_id, $action, $args = array() ) {
-		return ! empty( $GLOBALS['newspack_ea_test_wc_memberships_user_can'] );
-	}
-}
-
-// Lightweight stand-in for a WC_Memberships_User_Membership object, exposing
-// just the `get_start_date()` shape the plugin reads.
-if ( ! class_exists( 'Newspack_EA_Test_Membership_Stub' ) ) {
-	/**
-	 * Stub membership object that mirrors `WC_Memberships_User_Membership::get_start_date()`.
-	 */
-	class Newspack_EA_Test_Membership_Stub {
-		/**
-		 * Start timestamp returned by `get_start_date( 'timestamp' )`.
-		 *
-		 * @var int
-		 */
-		public $start_timestamp;
-
-		/**
-		 * @param int $start_timestamp Membership start timestamp.
-		 */
-		public function __construct( $start_timestamp ) {
-			$this->start_timestamp = $start_timestamp;
-		}
-
-		/**
-		 * @param string $format Format token. Only 'timestamp' is honoured here.
-		 * @return int
-		 */
-		// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter -- format arg kept for parity with WC.
-		public function get_start_date( $format = 'mysql' ) {
-			return $this->start_timestamp;
-		}
-	}
-}
-
-// Controllable stub for WC Memberships' active-memberships lookup. Tests set
-// $GLOBALS['newspack_ea_test_active_memberships'] to an array of stub objects.
-if ( ! function_exists( 'wc_memberships_get_user_active_memberships' ) ) {
-	// phpcs:ignore Generic.CodeAnalysis.UnusedFunctionParameter -- signature must match WC.
-	function wc_memberships_get_user_active_memberships( $user_id ) {
-		return isset( $GLOBALS['newspack_ea_test_active_memberships'] )
-			? $GLOBALS['newspack_ea_test_active_memberships']
-			: array();
-	}
-}
 /**
  * Tests REST API Controller.
  */
@@ -132,10 +61,9 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	public function set_up() {
 		parent::set_up();
 
-		// Reset the controllable WC Memberships stub between tests so a single
+		// Reset the controllable WC Memberships stubs between tests so a single
 		// SUBSCRIBER-path test can't leak access into unrelated assertions.
-		$GLOBALS['newspack_ea_test_wc_memberships_user_can'] = false;
-		$GLOBALS['newspack_ea_test_active_memberships']      = array();
+		newspack_ea_reset_wc_memberships_stubs();
 
 		// Setup Server to mock requests.
 		global $wp_rest_server;
@@ -159,10 +87,43 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$this->reader     = \Newspack\Reader_Activation::register_reader( 'reader@test.com', 'Reader' );
 		wp_logout();
 
-		// Create a cookie for testing purpose.
+		// A second post with no unlock cookie, so first-time and repeat unlocks
+		// can be told apart.
+		$this->unlocked_post = $this->factory->post->create();
+
+		// Start from a clean cookie jar: the endpoints now mirror granted
+		// unlocks into $_COOKIE, which would otherwise leak between tests.
+		// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
+		$_COOKIE = array();
+
+		// Seed an existing unlock for ($this->post, $this->reader).
 		$cookie_name = \Newspack\ExtendedAccess\REST_Controller::get_unlock_cookie_name( $this->post, $this->reader );
         // phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
 		$_COOKIE[ $cookie_name ] = 'true';
+	}
+
+	/**
+	 * Marks the reader as having opened an article through an Extended Access
+	 * entry point, which is what the unlock endpoint's permission check looks
+	 * for in readers who signed in rather than registering through Google.
+	 *
+	 * @param int $user_id  The user ID.
+	 * @param int $age      How long ago the entry happened, in seconds.
+	 */
+	private function record_extended_access_entry( $user_id, $age = 0 ) {
+		update_user_meta( $user_id, \Newspack\ExtendedAccess\REST_Controller::EXTENDED_ACCESS_ENTRY_META, time() - $age );
+	}
+
+	/**
+	 * Dispatches an unlock request for a post as the current user.
+	 *
+	 * @param int $post_id The post ID.
+	 * @return WP_REST_Response
+	 */
+	private function dispatch_unlock_request( $post_id ) {
+		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/unlock-article' );
+		$request->set_header( 'X-WP-Post-ID', $post_id );
+		return $this->server->dispatch( $request );
 	}
 
 	/**
@@ -306,6 +267,21 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$this->assertEquals( 'SUBSCRIBER', $response_data['grantReason'] );
 		$this->assertArrayHasKey( 'id', $response_data );
 		$this->assertArrayHasKey( 'subscriptionTimestamp', $response_data );
+
+		// The access check must be asked about this reader and this post. A
+		// stub that only reports its return value would pass just as happily on
+		// the wrong user, or on the `0` an absent post ID header normalises to.
+		$this->assertEquals(
+			array(
+				array(
+					'user_id' => $this->reader,
+					'action'  => 'view',
+					'args'    => array( 'post' => $this->post ),
+				),
+			),
+			$GLOBALS['newspack_ea_test_wc_memberships_user_can_calls'],
+			'The membership access check should be asked about the current reader and the requested post.'
+		);
 	}
 
 	/**
@@ -339,6 +315,11 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 			$response_data['registrationTimestamp'],
 			$response_data['subscriptionTimestamp'],
 			'subscriptionTimestamp must no longer be hardcoded to the user_registered date.'
+		);
+		$this->assertEquals(
+			array( $this->reader ),
+			$GLOBALS['newspack_ea_test_active_memberships_calls'],
+			'Memberships should be looked up for the current reader.'
 		);
 	}
 
@@ -384,6 +365,50 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		$this->assertTrue( $response_data['granted'], 'Registered subscriber should be granted.' );
 		$this->assertEquals( 'reader@test.com', $response_data['email'] );
 		$this->assertEquals( 'METERING', $response_data['grantReason'] );
+	}
+
+	/**
+	 * The status endpoint re-issues the reader's session, which invalidates the
+	 * nonce the page was rendered with. The nonce it hands back must belong to
+	 * the session the reader's browser now holds, or every later Extended
+	 * Access call fails its nonce check — including the unlock the reader is
+	 * about to make.
+	 */
+	public function test_login_status__returned_nonce_matches_the_reissued_session() {
+		wp_set_current_user( $this->reader );
+		$original_cookie = isset( $_COOKIE[ LOGGED_IN_COOKIE ] ) ? $_COOKIE[ LOGGED_IN_COOKIE ] : null;
+
+		// The cookie WordPress sends to the browser, captured after the endpoint
+		// has had its chance to keep $_COOKIE in step with it.
+		$browser_cookie = null;
+		add_action(
+			'set_logged_in_cookie',
+			function ( $logged_in_cookie ) use ( &$browser_cookie ) {
+				$browser_cookie = $logged_in_cookie;
+			},
+			99
+		);
+
+		$response = $this->server->dispatch( new WP_REST_Request( 'GET', $this->api_namespace . '/login/status' ) );
+		$headers  = $response->get_headers();
+
+		$this->assertArrayHasKey( 'X-WP-Nonce', $headers, 'The response must carry a nonce for the reader to continue with.' );
+		$this->assertNotNull( $browser_cookie, 'Precondition: the endpoint re-issues the session.' );
+
+		// Verify as the reader's browser would on its next request.
+		// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
+		$_COOKIE[ LOGGED_IN_COOKIE ] = $browser_cookie;
+		$nonce_is_valid              = wp_verify_nonce( $headers['X-WP-Nonce'], 'wp_rest' );
+
+		if ( null === $original_cookie ) {
+			// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
+			unset( $_COOKIE[ LOGGED_IN_COOKIE ] );
+		} else {
+			// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE
+			$_COOKIE[ LOGGED_IN_COOKIE ] = $original_cookie;
+		}
+
+		$this->assertNotFalse( $nonce_is_valid, 'The nonce handed back must be usable by the session the reader now holds.' );
 	}
 
 	/**
@@ -476,51 +501,116 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	public function test_unlock_article__unauthenticated_user() {
 		wp_set_current_user( 0 );
 
-		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/unlock-article' );
-		$request->set_header( 'X-WP-Post-ID', $this->post );
-
-		$response = $this->server->dispatch( $request );
+		$response = $this->dispatch_unlock_request( $this->post );
 
 		$this->assertEquals( 401, $response->get_status(), 'Unauthenticated users should be denied access.' );
 	}
 
 	/**
-	 * Ensures authenticated Extended Access user can unlock an article without leaking cookie name.
+	 * A reader who registered through Extended Access unlocks an article, and
+	 * the unlock is recorded as the per-(user, post) cookie that lifts content
+	 * gating. Asserting on the cookie rather than the status string matters
+	 * because the cookie is the entire mechanism — the string is just a report.
 	 */
 	public function test_unlock_article__extended_access_user() {
 		wp_set_current_user( $this->reader );
 		update_user_meta( $this->reader, 'extended_access_sub', '0123456789' );
 
-		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/unlock-article' );
-		$request->set_header( 'X-WP-Post-ID', $this->post );
+		$cookie_name = \Newspack\ExtendedAccess\REST_Controller::get_unlock_cookie_name( $this->unlocked_post, $this->reader );
+		$this->assertArrayNotHasKey( $cookie_name, $_COOKIE, 'Precondition: the post starts locked for this reader.' );
 
-		$response      = $this->server->dispatch( $request );
+		$response      = $this->dispatch_unlock_request( $this->unlocked_post );
 		$response_data = $response->get_data();
 
 		$this->assertEquals( 'UNLOCKED', $response_data['status'], 'Extended Access user should get UNLOCKED status.' );
+		$this->assertArrayHasKey( $cookie_name, $_COOKIE, 'The unlock must be recorded as a cookie for this (user, post).' );
 		$this->assertArrayNotHasKey( 'c', $response_data, 'Cookie name should not be exposed in the response.' );
+	}
+
+	/**
+	 * The unlock is scoped to one post: unlocking an article must not lift the
+	 * gate on any other.
+	 */
+	public function test_unlock_article__unlock_is_scoped_to_the_requested_post() {
+		wp_set_current_user( $this->reader );
+		update_user_meta( $this->reader, 'extended_access_sub', '0123456789' );
+		$other_post = $this->factory->post->create();
+
+		$this->dispatch_unlock_request( $this->unlocked_post );
+
+		$this->assertArrayNotHasKey(
+			\Newspack\ExtendedAccess\REST_Controller::get_unlock_cookie_name( $other_post, $this->reader ),
+			$_COOKIE,
+			'Unlocking one post must not unlock another.'
+		);
+	}
+
+	/**
+	 * A repeat call for an already-unlocked post is answered distinctly, so the
+	 * client can reload on a first-time grant only. Without this the endpoint
+	 * reports UNLOCKED forever and the client has nothing to stop reloading on.
+	 */
+	public function test_unlock_article__repeat_call_reports_already_unlocked() {
+		wp_set_current_user( $this->reader );
+		update_user_meta( $this->reader, 'extended_access_sub', '0123456789' );
+
+		$first  = $this->dispatch_unlock_request( $this->unlocked_post )->get_data();
+		$second = $this->dispatch_unlock_request( $this->unlocked_post )->get_data();
+
+		$this->assertEquals( 'UNLOCKED', $first['status'], 'The first call is a fresh grant.' );
+		$this->assertEquals( 'ALREADY_UNLOCKED', $second['status'], 'A repeat call must be distinguishable from a fresh grant.' );
 	}
 
 	/**
 	 * A logged-in reader who never registered via Google Extended Access — for
 	 * example a pre-existing publisher reader who reached the article via the
 	 * "Already registered? Sign in" branch of Use Case 4 — must still be able
-	 * to unlock the article when Google's GAA library decides to grant them
-	 * EA. Previously the endpoint gated on `extended_access_sub` user-meta
-	 * and 403'd these users, which broke the dismiss-CTA → unlock flow for
-	 * any reader whose account predated EA.
+	 * to unlock the article. Gating on `extended_access_sub` alone 403'd these
+	 * readers, breaking the dismiss-CTA unlock for any account predating EA.
 	 */
-	public function test_unlock_article__logged_in_user_without_ea_sub_can_unlock() {
+	public function test_unlock_article__reader_who_arrived_via_extended_access_can_unlock() {
 		wp_set_current_user( $this->reader );
 		delete_user_meta( $this->reader, 'extended_access_sub' );
+		$this->record_extended_access_entry( $this->reader );
 
-		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/unlock-article' );
-		$request->set_header( 'X-WP-Post-ID', $this->post );
-
-		$response      = $this->server->dispatch( $request );
+		$response      = $this->dispatch_unlock_request( $this->unlocked_post );
 		$response_data = $response->get_data();
 
-		$this->assertEquals( 200, $response->get_status(), 'Logged-in users should be allowed to unlock irrespective of EA registration history.' );
+		$this->assertEquals( 200, $response->get_status(), 'A reader in the Extended Access flow should be allowed to unlock.' );
 		$this->assertEquals( 'UNLOCKED', $response_data['status'] );
+	}
+
+	/**
+	 * The unlock endpoint mints the cookie that lifts content gating, so a
+	 * logged-in reader who is not in the Extended Access flow at all — no EA
+	 * registration, never arrived through a Showcase link — must not reach it.
+	 */
+	public function test_unlock_article__reader_outside_extended_access_flow_is_denied() {
+		wp_set_current_user( $this->reader );
+		delete_user_meta( $this->reader, 'extended_access_sub' );
+		delete_user_meta( $this->reader, \Newspack\ExtendedAccess\REST_Controller::EXTENDED_ACCESS_ENTRY_META );
+
+		$response = $this->dispatch_unlock_request( $this->unlocked_post );
+
+		$this->assertEquals( 403, $response->get_status(), 'Being logged in is not on its own grounds to unlock an article.' );
+		$this->assertArrayNotHasKey(
+			\Newspack\ExtendedAccess\REST_Controller::get_unlock_cookie_name( $this->unlocked_post, $this->reader ),
+			$_COOKIE,
+			'A denied request must not leave an unlock behind.'
+		);
+	}
+
+	/**
+	 * The Extended Access entry marker expires, so a reader who passed through
+	 * Extended Access once cannot unlock arbitrary articles indefinitely.
+	 */
+	public function test_unlock_article__stale_extended_access_entry_is_denied() {
+		wp_set_current_user( $this->reader );
+		delete_user_meta( $this->reader, 'extended_access_sub' );
+		$this->record_extended_access_entry( $this->reader, DAY_IN_SECONDS );
+
+		$response = $this->dispatch_unlock_request( $this->unlocked_post );
+
+		$this->assertEquals( 403, $response->get_status(), 'A stale Extended Access entry should not still grant unlocks.' );
 	}
 }

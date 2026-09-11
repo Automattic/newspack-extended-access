@@ -431,8 +431,10 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 	}
 
 	/**
-	 * The unlock-article endpoint reports a metered unlock as UNLOCKED, not
-	 * SUBSCRIBER: holding an unlock cookie is not full gate access.
+	 * The unlock-article endpoint reports a metered unlock as an unlock, not as
+	 * SUBSCRIBER: holding an unlock cookie is not full gate access. The reader
+	 * here already holds one, so the endpoint answers ALREADY_UNLOCKED — the
+	 * repeat-call form of the same state.
 	 */
 	public function test_unlock_article_reports_unlocked_not_subscriber() {
 		$this->create_failing_paywall_gate();
@@ -444,9 +446,9 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 		$unlock_response = REST_Controller::api_unlock_article( $unlock_request );
 
 		$this->assertSame(
-			'UNLOCKED',
+			'ALREADY_UNLOCKED',
 			$unlock_response->get_data()['status'],
-			'A reader whose only access is the unlock must be reported as UNLOCKED (metering grant), not SUBSCRIBER.'
+			'A reader whose only access is the unlock must be reported as unlocked, not as SUBSCRIBER.'
 		);
 		// The gate evaluation above detaches the unlock filter to avoid reading a
 		// metered unlock as full access. Leaving it detached would silently stop

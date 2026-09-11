@@ -10,7 +10,7 @@ namespace Newspack\ExtendedAccess;
 
 use Newspack;
 
-define( 'NEWSPACK_SWG_SCRIPT_VERSION', '1.0.3' );
+define( 'NEWSPACK_SWG_SCRIPT_VERSION', '1.0.4' );
 
 /**
  * Registers required scripts for SwG implementation
@@ -44,7 +44,17 @@ class Google_ExtendedAccess {
 	 * type is incorrect and would confuse Google.
 	 */
 	private static function can_insert_frontend_markup() {
-		return is_singular( 'post' );
+		/**
+		 * Filters whether Extended Access markup is inserted on the current view.
+		 *
+		 * Publishers who gate a custom post type or a page need a way back in:
+		 * without the schema Google's crawler reads the content as free and
+		 * Extended Access stops being offered on it, with nothing in the admin
+		 * to show that it stopped.
+		 *
+		 * @param bool $can_insert Whether to insert Extended Access frontend markup.
+		 */
+		return (bool) apply_filters( 'newspack_extended_access_can_insert_frontend_markup', is_singular( 'post' ) );
 	}
 
 	/**
@@ -135,6 +145,16 @@ class Google_ExtendedAccess {
 		// Only enqueue scripts when Extended Access is happening.
 		if ( empty( get_query_var( self::GOOGLE_EA_REQUEST_PARAM ) ) ) {
 			return;
+		}
+
+		/*
+		 * The reader reached this article through an Extended Access entry
+		 * point. For readers who signed in rather than registering through
+		 * Google, this is the only point at which the server sees that, and the
+		 * unlock endpoint has nothing else to recognise them by.
+		 */
+		if ( is_user_logged_in() ) {
+			REST_Controller::record_extended_access_entry( get_current_user_id() );
 		}
 
 		// Newspack Extended Access Script.
