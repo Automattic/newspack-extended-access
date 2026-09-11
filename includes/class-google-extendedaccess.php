@@ -10,7 +10,7 @@ namespace Newspack\ExtendedAccess;
 
 use Newspack;
 
-define( 'NEWSPACK_SWG_SCRIPT_VERSION', '1.0.1' );
+define( 'NEWSPACK_SWG_SCRIPT_VERSION', '1.0.4' );
 
 /**
  * Registers required scripts for SwG implementation
@@ -36,9 +36,25 @@ class Google_ExtendedAccess {
 
 	/**
 	 * Check conditions for frontend markup insertion.
+	 *
+	 * Extended Access targets article pages, so both the LD+JSON schema
+	 * (which declares `@type: Article`) and the SwG client libraries are
+	 * scoped to single post views. Without this gate the schema would leak
+	 * onto archives, pages, search, and CPT singulars where the `Article`
+	 * type is incorrect and would confuse Google.
 	 */
 	private static function can_insert_frontend_markup() {
-		return ! is_front_page() && ! is_404();
+		/**
+		 * Filters whether Extended Access markup is inserted on the current view.
+		 *
+		 * Publishers who gate a custom post type or a page need a way back in:
+		 * without the schema Google's crawler reads the content as free and
+		 * Extended Access stops being offered on it, with nothing in the admin
+		 * to show that it stopped.
+		 *
+		 * @param bool $can_insert Whether to insert Extended Access frontend markup.
+		 */
+		return (bool) apply_filters( 'newspack_extended_access_can_insert_frontend_markup', is_singular( 'post' ) );
 	}
 
 	/**
@@ -131,66 +147,77 @@ class Google_ExtendedAccess {
 			return;
 		}
 
-		// Add scripts only for `post` type.
-		if ( get_post_type() === 'post' ) { // Add slug in condition.
-			// Newspack Extended Access Script.
-			$assets_path = plugins_url( '../assets/', __FILE__ );
-			wp_register_script( 'newspack-swg', $assets_path . 'js/newspack-swg.js', array(), NEWSPACK_SWG_SCRIPT_VERSION, array( 'strategy' => 'async' ) );
-			wp_enqueue_script( 'newspack-swg' );
-
-			$home_url_parts    = wp_parse_url( home_url() );
-			$allowed_referrers = array( $home_url_parts['host'] );
-
-			/*
-			 * The page the SwG script sends existing readers to for logging in:
-			 * WooCommerce's My Account when available, otherwise the WP login
-			 * URL. Both are handed over bare - the script appends the return
-			 * destination itself, from the live URL rather than the permalink,
-			 * so the Extended Access query args needed to resume the flow after
-			 * login survive the round trip.
-			 */
-			$my_account_url = function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'myaccount' ) : wp_login_url();
-
-			// Nonce for REST API.
-			wp_localize_script(
-				'newspack-swg',
-				'authenticationSettings',
-				array(
-					'nonce'             => wp_create_nonce( 'wp_rest' ),
-					'allowedReferrers'  => $allowed_referrers,
-					'postID'            => get_the_ID(),
-					'googleClientApiID' => get_option( Admin_Settings::GOOGLE_CLIENT_API_ID_OPTION, '' ),
-					'myAccountURL'      => $my_account_url,
-				)
-			);
-
-			// Google Extended Access Scripts.
-			wp_print_script_tag(
-				array(
-					'id'    => 'google-account-gsi-client',
-					'async' => true,
-					'src'   => esc_url( 'https://accounts.google.com/gsi/client' ),
-					'defer' => true,
-				)
-			);
-
-			wp_print_script_tag(
-				array(
-					'id'                    => 'google-news-swg',
-					'async'                 => true,
-					'subscriptions-control' => 'manual',
-					'src'                   => esc_url( 'https://news.google.com/swg/js/v1/swg.js' ),
-				)
-			);
-
-			wp_print_script_tag(
-				array(
-					'id'     => 'google-news-swg-gaa',
-					'defer'  => true,
-					'src'    => esc_url( 'https://news.google.com/swg/js/v1/swg-gaa.js' ),
-					'onload' => 'initGaaMetering()',
-				)
-			);
+		/*
+		 * The reader reached this article through an Extended Access entry
+		 * point. For readers who signed in rather than registering through
+		 * Google, this is the only point at which the server sees that, and the
+		 * unlock endpoint has nothing else to recognise them by.
+		 */
+		if ( is_user_logged_in() ) {
+			REST_Controller::record_extended_access_entry( get_current_user_id() );
 		}
+
+		// Newspack Extended Access Script.
+		$assets_path = plugins_url( '../assets/', __FILE__ );
+		wp_register_script( 'newspack-swg', $assets_path . 'js/newspack-swg.js', array(), NEWSPACK_SWG_SCRIPT_VERSION, array( 'strategy' => 'async' ) );
+		wp_enqueue_script( 'newspack-swg' );
+
+		$home_url_parts    = wp_parse_url( home_url() );
+		$allowed_referrers = array( $home_url_parts['host'] );
+
+		/*
+		 * The page the SwG script sends existing readers to for logging in:
+		 * WooCommerce's My Account when available, otherwise the WP login
+		 * URL. Both are handed over bare - the script appends the return
+		 * destination itself, from the live URL rather than the permalink,
+		 * so the Extended Access query args needed to resume the flow after
+		 * login survive the round trip.
+		 */
+		$my_account_url = function_exists( 'wc_get_page_permalink' ) ? wc_get_page_permalink( 'myaccount' ) : wp_login_url();
+
+		// Nonce for REST API.
+		wp_localize_script(
+			'newspack-swg',
+			'authenticationSettings',
+			array(
+				'nonce'             => wp_create_nonce( 'wp_rest' ),
+				'allowedReferrers'  => $allowed_referrers,
+				'postID'            => get_the_ID(),
+				'googleClientApiID' => get_option( Admin_Settings::GOOGLE_CLIENT_API_ID_OPTION, '' ),
+				'myAccountURL'      => $my_account_url,
+				// Built with `rest_url()` so the script works on installs served
+				// from a subdirectory, a non-standard port, or with plain
+				// permalinks (where REST lives under `?rest_route=`).
+				'restURL'           => esc_url_raw( rest_url( REST_Controller::NAMESPACE . '/' ) ),
+			)
+		);
+
+		// Google Extended Access Scripts.
+		wp_print_script_tag(
+			array(
+				'id'    => 'google-account-gsi-client',
+				'async' => true,
+				'src'   => esc_url( 'https://accounts.google.com/gsi/client' ),
+				'defer' => true,
+			)
+		);
+
+		wp_print_script_tag(
+			array(
+				'id'                    => 'google-news-swg',
+				'async'                 => true,
+				'subscriptions-control' => 'manual',
+				'src'                   => esc_url( 'https://news.google.com/swg/js/v1/swg.js' ),
+			)
+		);
+
+		wp_print_script_tag(
+			array(
+				'id'     => 'google-news-swg-gaa',
+				'defer'  => true,
+				'src'    => esc_url( 'https://news.google.com/swg/js/v1/swg-gaa.js' ),
+				'onload' => 'initGaaMetering()',
+			)
+		);
 	}
 }

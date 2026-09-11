@@ -54,15 +54,15 @@ class Newspack_Test_Google_JWT extends WP_UnitTestCase {
 
 		// Update the options.
 		update_option( Google_Jwt::CACHE_OPTION_NAME, $jwk_key_set );
-		update_option( 'newspack_extended_access__google_client_api_id', 'authorized-party' );
+		update_option( 'newspack_extended_access__google_client_api_id', 'client-id.apps.googleusercontent.com' );
 
 		// Create a message.
 		$message = [
-			'iss' => 'http://google.org',
-			'aud' => 'http://google.com',
+			'iss' => 'https://accounts.google.com',
+			'aud' => 'client-id.apps.googleusercontent.com',
 			'iat' => 1356999524,
 			'nbf' => 1357000000,
-			'azp' => 'authorized-party',
+			'azp' => 'client-id.apps.googleusercontent.com',
 			'exp' => time() + 3600,
 		];
 
@@ -119,15 +119,15 @@ class Newspack_Test_Google_JWT extends WP_UnitTestCase {
 		// Update the options.
 		// Update the cache with the invalid JWK key set to simulate an outdated cache.
 		update_option( Google_Jwt::CACHE_OPTION_NAME, $invalid_jwk_key_set );
-		update_option( 'newspack_extended_access__google_client_api_id', 'authorized-party' );
+		update_option( 'newspack_extended_access__google_client_api_id', 'client-id.apps.googleusercontent.com' );
 
 		// Create a message.
 		$message = [
-			'iss' => 'http://google.org',
-			'aud' => 'http://google.com',
+			'iss' => 'https://accounts.google.com',
+			'aud' => 'client-id.apps.googleusercontent.com',
 			'iat' => 1356999524,
 			'nbf' => 1357000000,
-			'azp' => 'authorized-party',
+			'azp' => 'client-id.apps.googleusercontent.com',
 			'exp' => time() + 3600,
 		];
 
@@ -158,6 +158,166 @@ class Newspack_Test_Google_JWT extends WP_UnitTestCase {
 
 		// Assert the message.
 		$this->assertEquals( $message, (array) $result );
+	}
+
+	/**
+	 * Test the decode() function rejects tokens with an invalid issuer.
+	 *
+	 * @covers Newspack\ExtendedAccess\Google_Jwt::decode
+	 *
+	 * @return void
+	 */
+	public function test_decode_rejects_invalid_issuer(): void {
+		$private_key = openssl_pkey_new(
+			array(
+				'digest_alg'       => 'sha256',
+				'private_key_bits' => 2048,
+				'private_key_type' => OPENSSL_KEYTYPE_RSA,
+			)
+		);
+		$public_key_details = openssl_pkey_get_details( $private_key );
+		$kid                = 'test-key-id';
+		$jwk_key_set        = $this->convert_rsa_to_jwk( $public_key_details, $kid );
+
+		update_option( Google_Jwt::CACHE_OPTION_NAME, $jwk_key_set );
+		update_option( 'newspack_extended_access__google_client_api_id', 'client-id.apps.googleusercontent.com' );
+
+		// Issuer is not one of Google's accepted values.
+		$message = [
+			'iss' => 'https://evil.example.com',
+			'aud' => 'client-id.apps.googleusercontent.com',
+			'iat' => time() - 60,
+			'nbf' => time() - 60,
+			'exp' => time() + 3600,
+		];
+
+		$jwt        = JWT::encode( $message, $private_key, 'RS256', $kid );
+		$google_jwt = new Google_Jwt( $jwt );
+		$result     = $google_jwt->decode();
+
+		$this->assertWPError( $result );
+		$this->assertEquals( 'newspack_extended_access_google_token', $result->get_error_code() );
+	}
+
+	/**
+	 * Test the decode() function rejects tokens with a mismatched audience.
+	 *
+	 * @covers Newspack\ExtendedAccess\Google_Jwt::decode
+	 *
+	 * @return void
+	 */
+	public function test_decode_rejects_invalid_audience(): void {
+		$private_key = openssl_pkey_new(
+			array(
+				'digest_alg'       => 'sha256',
+				'private_key_bits' => 2048,
+				'private_key_type' => OPENSSL_KEYTYPE_RSA,
+			)
+		);
+		$public_key_details = openssl_pkey_get_details( $private_key );
+		$kid                = 'test-key-id';
+		$jwk_key_set        = $this->convert_rsa_to_jwk( $public_key_details, $kid );
+
+		update_option( Google_Jwt::CACHE_OPTION_NAME, $jwk_key_set );
+		update_option( 'newspack_extended_access__google_client_api_id', 'client-id.apps.googleusercontent.com' );
+
+		// Audience is a different Google client. `azp` matches ours, which is what the
+		// old (vulnerable) implementation would have accepted.
+		$message = [
+			'iss' => 'https://accounts.google.com',
+			'aud' => 'other-client.apps.googleusercontent.com',
+			'azp' => 'client-id.apps.googleusercontent.com',
+			'iat' => time() - 60,
+			'nbf' => time() - 60,
+			'exp' => time() + 3600,
+		];
+
+		$jwt        = JWT::encode( $message, $private_key, 'RS256', $kid );
+		$google_jwt = new Google_Jwt( $jwt );
+		$result     = $google_jwt->decode();
+
+		$this->assertWPError( $result );
+		$this->assertEquals( 'newspack_extended_access_google_token', $result->get_error_code() );
+	}
+
+	/**
+	 * RFC 7519 allows `aud` to be an array of strings as well as a single
+	 * string. A token whose audience array contains our client ID is valid and
+	 * must not be rejected.
+	 *
+	 * @covers Newspack\ExtendedAccess\Google_Jwt::decode
+	 *
+	 * @return void
+	 */
+	public function test_decode_accepts_array_audience_containing_client_id(): void {
+		$private_key = openssl_pkey_new(
+			array(
+				'digest_alg'       => 'sha256',
+				'private_key_bits' => 2048,
+				'private_key_type' => OPENSSL_KEYTYPE_RSA,
+			)
+		);
+		$public_key_details = openssl_pkey_get_details( $private_key );
+		$kid                = 'test-key-id';
+		$jwk_key_set        = $this->convert_rsa_to_jwk( $public_key_details, $kid );
+
+		update_option( Google_Jwt::CACHE_OPTION_NAME, $jwk_key_set );
+		update_option( 'newspack_extended_access__google_client_api_id', 'client-id.apps.googleusercontent.com' );
+
+		$message = [
+			'iss' => 'https://accounts.google.com',
+			'aud' => [ 'other-client.apps.googleusercontent.com', 'client-id.apps.googleusercontent.com' ],
+			'iat' => time() - 60,
+			'nbf' => time() - 60,
+			'exp' => time() + 3600,
+		];
+
+		$jwt        = JWT::encode( $message, $private_key, 'RS256', $kid );
+		$google_jwt = new Google_Jwt( $jwt );
+		$result     = $google_jwt->decode();
+
+		$this->assertNotWPError( $result );
+	}
+
+	/**
+	 * An array audience that does *not* contain our client ID must still be
+	 * rejected — the array shape widens what is accepted, it does not bypass
+	 * the check.
+	 *
+	 * @covers Newspack\ExtendedAccess\Google_Jwt::decode
+	 *
+	 * @return void
+	 */
+	public function test_decode_rejects_array_audience_without_client_id(): void {
+		$private_key = openssl_pkey_new(
+			array(
+				'digest_alg'       => 'sha256',
+				'private_key_bits' => 2048,
+				'private_key_type' => OPENSSL_KEYTYPE_RSA,
+			)
+		);
+		$public_key_details = openssl_pkey_get_details( $private_key );
+		$kid                = 'test-key-id';
+		$jwk_key_set        = $this->convert_rsa_to_jwk( $public_key_details, $kid );
+
+		update_option( Google_Jwt::CACHE_OPTION_NAME, $jwk_key_set );
+		update_option( 'newspack_extended_access__google_client_api_id', 'client-id.apps.googleusercontent.com' );
+
+		$message = [
+			'iss' => 'https://accounts.google.com',
+			'aud' => [ 'other-client.apps.googleusercontent.com', 'third-client.apps.googleusercontent.com' ],
+			'azp' => 'client-id.apps.googleusercontent.com',
+			'iat' => time() - 60,
+			'nbf' => time() - 60,
+			'exp' => time() + 3600,
+		];
+
+		$jwt        = JWT::encode( $message, $private_key, 'RS256', $kid );
+		$google_jwt = new Google_Jwt( $jwt );
+		$result     = $google_jwt->decode();
+
+		$this->assertWPError( $result );
+		$this->assertEquals( 'newspack_extended_access_google_token', $result->get_error_code() );
 	}
 
 	/**

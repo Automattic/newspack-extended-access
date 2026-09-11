@@ -30,6 +30,18 @@ Login to you Newspack site dashboard as an `Administrator`:
 
 ![Configure Google Client API ID](assets/media/configure-google-client-api-id.png)
 
+## Supported content
+
+Extended Access is offered on single posts. Gated pages and custom post types get neither the schema Google's crawler reads nor the Extended Access scripts, so readers see the publisher's own paywall on them instead.
+
+To include other content types, filter the check:
+
+```php
+add_filter( 'newspack_extended_access_can_insert_frontend_markup', function( $can_insert ) {
+	return $can_insert || is_singular( 'my-custom-post-type' );
+} );
+```
+
 ## License
 
 Newspack Extended Access is licensed under [GNU General Public License v3 (or later)](./LICENSE).
