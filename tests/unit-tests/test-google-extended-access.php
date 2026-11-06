@@ -6,6 +6,7 @@
  */
 
 use Newspack\ExtendedAccess;
+use Newspack\ExtendedAccess\Google_ExtendedAccess;
 
 require_once dirname( __FILE__ ) . '/utils/class-plugin-manager.php';
 require_once dirname( __FILE__ ) . '/utils/wc-memberships-stubs.php';
@@ -179,5 +180,51 @@ class Newspack_Test_Google_ExtendedAccess extends WP_UnitTestCase {
 			get_user_meta( $reader, \Newspack\ExtendedAccess\REST_Controller::EXTENDED_ACCESS_ENTRY_META, true ),
 			'An article view without the Extended Access parameter is not an entry.'
 		);
+	}
+
+	/**
+	 * Captures the script tags printed for an Extended Access view of a post.
+	 *
+	 * @return string
+	 */
+	private function capture_printed_scripts() {
+		$this->go_to( get_permalink( $this->post ) );
+		set_query_var( Google_ExtendedAccess::GOOGLE_EA_REQUEST_PARAM, '1' );
+
+		ob_start();
+		Google_ExtendedAccess::enqueue_script();
+		return ob_get_clean();
+	}
+
+	/**
+	 * With Perfmatters delaying all scripts, the registration wall waits for the
+	 * reader's first interaction unless each script behind it is excluded by the
+	 * `id` it is printed with.
+	 */
+	public function test_every_printed_script_is_excluded_from_perfmatters() {
+		$printed_scripts = $this->capture_printed_scripts();
+
+		preg_match_all( '/<script[^>]* id="([^"]+)"/', $printed_scripts, $printed_ids );
+		$this->assertCount( 3, $printed_ids[1] );
+
+		foreach ( array( 'perfmatters_delay_js_exclusions', 'perfmatters_defer_js_exclusions' ) as $exclusions_filter ) {
+			$exclusions = apply_filters( $exclusions_filter, array( 'saved-by-the-publisher' ) );
+
+			$this->assertContains( 'saved-by-the-publisher', $exclusions );
+			$this->assertContains( 'newspack-swg-js', $exclusions );
+			$this->assertContains( 'newspack-swg-js-extra', $exclusions );
+			$this->assertEmpty( array_diff( $printed_ids[1], $exclusions ) );
+		}
+	}
+
+	/**
+	 * `newspack-swg.js` is async, so it can still be on its way when Google's
+	 * script loads. An unguarded call would throw and leave metering unstarted.
+	 */
+	public function test_google_script_tolerates_the_metering_script_arriving_second() {
+		$printed_scripts = $this->capture_printed_scripts();
+
+		$this->assertStringContainsString( 'window.initGaaMetering', html_entity_decode( $printed_scripts ) );
+		$this->assertStringContainsString( 'window.GaaMetering', file_get_contents( dirname( __DIR__, 2 ) . '/assets/js/newspack-swg.js' ) ); // phpcs:ignore WordPressVIPMinimum.Performance.FetchingRemoteData.FileGetContentsUnknown
 	}
 }
