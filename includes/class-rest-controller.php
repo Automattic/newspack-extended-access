@@ -695,15 +695,18 @@ class REST_Controller {
 		$registration_timestamp = strtotime( $logged_in_user->user_registered );
 
 		// Refresh the current reader so the Newspack reader activation system
-		// keeps in sync with the logged-in user.
-		$result = self::set_current_reader( $user_id );
-		if ( is_wp_error( $result ) ) {
-			return self::user_state_response(
-				array(
-					'granted' => false,
-					'reason'  => $result->get_error_code(),
-				)
-			);
+		// keeps in sync with the logged-in user. Administrators and editors have
+		// no reader session to refresh, but they are still known to the site.
+		if ( Newspack\Reader_Activation::is_user_reader( $logged_in_user ) ) {
+			$result = self::set_current_reader( $user_id );
+			if ( is_wp_error( $result ) ) {
+				return self::user_state_response(
+					array(
+						'granted' => false,
+						'reason'  => $result->get_error_code(),
+					)
+				);
+			}
 		}
 
 		// Build the userState `id`. Prefer the Google `sub` when the user

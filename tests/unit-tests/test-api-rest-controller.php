@@ -285,6 +285,25 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	}
 
 	/**
+	 * Administrators and editors cannot have a reader session, but they are still
+	 * logged in. A state without an `id` reads as anonymous, and Google then shows
+	 * them the registration wall on an article they can already read.
+	 */
+	public function test_login_status__logged_in_staff_are_not_anonymous() {
+		$editor = $this->factory->user->create( array( 'role' => 'editor' ) );
+		wp_set_current_user( $editor );
+		$GLOBALS['newspack_ea_test_wc_memberships_user_can'] = true;
+
+		$request = new WP_REST_Request( 'GET', $this->api_namespace . '/login/status' );
+		$request->set_header( 'X-WP-Post-ID', $this->post );
+		$user_state = $this->server->dispatch( $request )->get_data();
+
+		$this->assertNotEmpty( $user_state['id'] );
+		$this->assertSame( 'SUBSCRIBER', $user_state['grantReason'] );
+		$this->assertSame( $editor, get_current_user_id() );
+	}
+
+	/**
 	 * `subscriptionTimestamp` must reflect the user's actual membership start
 	 * date, not their WP account creation date. When multiple memberships are
 	 * active, the earliest start date is reported.
