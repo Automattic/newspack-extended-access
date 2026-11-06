@@ -13,6 +13,8 @@ use Newspack\ExtendedAccess\SinglePost_Subscription;
 
 require_once dirname( __FILE__ ) . '/utils/class-plugin-manager.php';
 require_once dirname( __FILE__ ) . '/utils/trait-hook-snapshot.php';
+require_once dirname( __FILE__ ) . '/utils/class-newspack-ea-test-subscription-stub.php';
+require_once dirname( __FILE__ ) . '/utils/wc-subscriptions-stubs.php';
 
 /**
  * Tests that unlocks granted via Google Extended Access are honored by the
@@ -42,7 +44,7 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 	 *
 	 * @var string
 	 */
-	const NEWSPACK_PLUGIN_ZIP = 'https://github.com/Automattic/newspack-plugin/releases/download/v6.42.3/newspack-plugin.zip';
+	const NEWSPACK_PLUGIN_ZIP = 'https://github.com/Automattic/newspack-workspace/releases/download/newspack%406.56.4/newspack-plugin.zip';
 
 	/**
 	 * Sample post ID.
@@ -105,12 +107,7 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 		foreach ( \Newspack\Content_Gate::get_gates() as $gate ) {
 			wp_delete_post( $gate['id'], true );
 		}
-		// The stand-in for the Access Control implementation names a method the
-		// pinned Newspack release does not have, so a test that leaves it
-		// registered would fatal any later test that fires the filter. Removing
-		// it here rather than inline keeps that true even when a test fails
-		// partway through.
-		remove_filter( 'newspack_post_has_restrictions', DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK );
+		$GLOBALS['newspack_ea_test_subscriptions'] = array();
 		$this->reset_post_gates_cache();
 		wp_set_current_user( 0 );
 		parent::tear_down();
@@ -145,20 +142,21 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 	}
 
 	/**
-	 * Create a published paywall-style gate applying to all posts, which the
-	 * test reader fails (email domain whitelist).
+	 * Create a published gate applying to all posts.
 	 *
-	 * @param array $layout_meta Optional meta to set on the gate layout post (e.g. overlay style).
+	 * @param array $access_rules          The gate's custom access rules.
+	 * @param int   $priority              The gate's priority; lower values are evaluated first.
+	 * @param array $custom_access_changes Settings that replace the custom access defaults.
 	 * @return int Gate ID.
 	 */
-	private function create_failing_paywall_gate( $layout_meta = array() ) {
-		$paywall_gate_id = \Newspack\Content_Gate::create_gate( array( 'title' => 'EA Paywall Gate' ) );
+	private function create_gate_with_access_rules( $access_rules, $priority = 1, $custom_access_changes = array() ) {
+		$gate_id = \Newspack\Content_Gate::create_gate( array( 'title' => 'EA Paywall Gate' ) );
 		\Newspack\Content_Gate::update_gate_settings(
-			$paywall_gate_id,
+			$gate_id,
 			array(
 				'title'         => 'EA Paywall Gate',
 				'status'        => 'publish',
-				'priority'      => 1,
+				'priority'      => $priority,
 				'content_rules' => array(
 					array(
 						'slug'  => 'post_types',
@@ -175,20 +173,38 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 					'require_verification' => false,
 					'gate_id'              => 0,
 				),
-				'custom_access' => array(
-					'active'       => true,
-					'metering'     => array(
-						'enabled' => false,
-						'count'   => 0,
-						'period'  => 'month',
-					),
-					'gate_id'      => 0,
-					'access_rules' => array(
-						array(
-							'slug'  => 'email_domain',
-							'value' => 'vip.example.com',
+				'custom_access' => array_merge(
+					array(
+						'active'       => true,
+						'metering'     => array(
+							'enabled' => false,
+							'count'   => 0,
+							'period'  => 'month',
 						),
+						'gate_id'      => 0,
+						'access_rules' => $access_rules,
 					),
+					$custom_access_changes
+				),
+			)
+		);
+		$this->reset_post_gates_cache();
+		return $gate_id;
+	}
+
+	/**
+	 * Create a published paywall-style gate applying to all posts, which the
+	 * test reader fails (email domain whitelist).
+	 *
+	 * @param array $layout_meta Optional meta to set on the gate layout post (e.g. overlay style).
+	 * @return int Gate ID.
+	 */
+	private function create_failing_paywall_gate( $layout_meta = array() ) {
+		$paywall_gate_id = $this->create_gate_with_access_rules(
+			array(
+				array(
+					'slug'  => 'email_domain',
+					'value' => 'vip.example.com',
 				),
 			)
 		);
@@ -215,6 +231,231 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 		}
 		$this->reset_post_gates_cache();
 		return $paywall_gate_id;
+	}
+
+	/**
+	 * Gives the test reader active subscriptions.
+	 *
+	 * @param array $start_by_product_id Start timestamps, keyed by the product each subscription is for.
+	 */
+	private function give_reader_subscriptions( $start_by_product_id ) {
+		$GLOBALS['newspack_ea_test_subscriptions'] = array();
+		foreach ( $start_by_product_id as $product_id => $start ) {
+			$subscription_id = 9000 + $product_id;
+
+			$GLOBALS['newspack_ea_test_subscriptions'][ $subscription_id ] = new Newspack_EA_Test_Subscription_Stub( $subscription_id, $start, array( $product_id ) );
+		}
+	}
+
+	/**
+	 * Requests the userState Google receives for the test reader on the test post.
+	 *
+	 * @return array The userState.
+	 */
+	private function get_reader_user_state() {
+		update_user_meta( $this->reader_id, \Newspack\Reader_Activation::READER, true );
+		update_user_meta( $this->reader_id, \Newspack\Reader_Activation::EMAIL_VERIFIED, true );
+		wp_set_current_user( $this->reader_id );
+
+		$status_request = new WP_REST_Request( 'GET', '/newspack-extended-access/v1/login/status' );
+		$status_request->set_header( 'X-WP-Post-ID', (string) $this->post_id );
+		return REST_Controller::api_verify_user( $status_request )->get_data();
+	}
+
+	/**
+	 * A subscription rule on a gate, for one product.
+	 *
+	 * @param int $product_id Product ID.
+	 * @return array The access rule.
+	 */
+	private function subscription_rule( $product_id ) {
+		return array(
+			'slug'  => 'subscription',
+			'value' => array( $product_id ),
+		);
+	}
+
+	/**
+	 * The reported date is the start of the subscription that opens the gate.
+	 * An older subscription to another product, such as a recurring donation,
+	 * grants nothing here and must not be reported.
+	 */
+	public function test_subscription_timestamp_ignores_subscriptions_the_gate_does_not_accept() {
+		$this->create_gate_with_access_rules( array( array( $this->subscription_rule( 20 ) ) ) );
+		$this->give_reader_subscriptions(
+			array(
+				10 => 1_500_000_000,
+				20 => 1_600_000_000,
+			)
+		);
+
+		$user_state = $this->get_reader_user_state();
+
+		$this->assertSame( 'SUBSCRIBER', $user_state['grantReason'] );
+		$this->assertSame( 1_600_000_000, $user_state['subscriptionTimestamp'] );
+	}
+
+	/**
+	 * When several subscriptions open the gate, the reader became a subscriber
+	 * at the earliest one.
+	 */
+	public function test_subscription_timestamp_is_the_earliest_granting_subscription() {
+		$this->create_gate_with_access_rules(
+			array(
+				array( $this->subscription_rule( 20 ) ),
+				array( $this->subscription_rule( 30 ) ),
+			)
+		);
+		$this->give_reader_subscriptions(
+			array(
+				20 => 1_700_000_000,
+				30 => 1_600_000_000,
+			)
+		);
+
+		$this->assertSame( 1_600_000_000, $this->get_reader_user_state()['subscriptionTimestamp'] );
+	}
+
+	/**
+	 * Gates are evaluated in priority order and the first one the reader passes
+	 * decides access, so the subscriptions accepted by later gates grant nothing.
+	 */
+	public function test_subscription_timestamp_comes_from_the_gate_that_decides_access() {
+		$this->create_gate_with_access_rules( array( array( $this->subscription_rule( 10 ) ) ), 2 );
+		$this->create_gate_with_access_rules( array( array( $this->subscription_rule( 20 ) ) ), 1 );
+		$this->give_reader_subscriptions(
+			array(
+				10 => 1_500_000_000,
+				20 => 1_600_000_000,
+			)
+		);
+
+		$this->assertSame( 1_600_000_000, $this->get_reader_user_state()['subscriptionTimestamp'] );
+	}
+
+	/**
+	 * A rule group the reader fails grants nothing, even when one of its rules
+	 * is a subscription the reader holds. Without a granting subscription the
+	 * registration date stands in, because SUBSCRIBER requires a timestamp.
+	 *
+	 * @dataProvider provide_access_without_a_granting_subscription
+	 *
+	 * @param bool $has_gate Whether a gate applies to the post.
+	 */
+	public function test_subscription_timestamp_falls_back_without_a_granting_subscription( $has_gate ) {
+		if ( $has_gate ) {
+			$this->create_gate_with_access_rules(
+				array(
+					array(
+						$this->subscription_rule( 10 ),
+						array(
+							'slug'  => 'email_domain',
+							'value' => 'vip.example.com',
+						),
+					),
+					array(
+						array(
+							'slug'  => 'email_domain',
+							'value' => substr( strrchr( get_userdata( $this->reader_id )->user_email, '@' ), 1 ),
+						),
+					),
+				)
+			);
+		}
+		$this->give_reader_subscriptions( array( 10 => 1_500_000_000 ) );
+
+		$user_state = $this->get_reader_user_state();
+
+		$this->assertSame( 'SUBSCRIBER', $user_state['grantReason'] );
+		$this->assertSame( $user_state['registrationTimestamp'], $user_state['subscriptionTimestamp'] );
+	}
+
+	/**
+	 * Cases of a reader with access that no subscription granted.
+	 *
+	 * @return array
+	 */
+	public function provide_access_without_a_granting_subscription() {
+		return array(
+			'gate opened by another rule' => array( true ),
+			'post with no gate'           => array( false ),
+		);
+	}
+
+	/**
+	 * A gate that switches off access during payment recovery does not count a
+	 * subscription in recovery, so the date comes from the active one.
+	 */
+	public function test_subscription_timestamp_follows_the_gate_payment_recovery_setting() {
+		$this->create_gate_with_access_rules( array( array( $this->subscription_rule( 20 ) ) ), 1, array( 'payment_recovery_grace' => false ) );
+		$GLOBALS['newspack_ea_test_subscriptions'] = array(
+			9001 => new Newspack_EA_Test_Subscription_Stub( 9001, 1_500_000_000, array( 20 ), 'on-hold', time() + DAY_IN_SECONDS ),
+			9002 => new Newspack_EA_Test_Subscription_Stub( 9002, 1_600_000_000, array( 20 ) ),
+		);
+
+		$this->assertSame( 1_600_000_000, $this->get_reader_user_state()['subscriptionTimestamp'] );
+	}
+
+	/**
+	 * Rules kept on a gate with custom access switched off grant nothing, so a
+	 * subscription they name is not what let the reader through.
+	 */
+	public function test_subscription_timestamp_ignores_rules_on_inactive_custom_access() {
+		$gate_id = $this->create_gate_with_access_rules( array( array( $this->subscription_rule( 20 ) ) ), 1, array( 'active' => false ) );
+		\Newspack\Content_Gate::update_registration_settings( $gate_id, array( 'active' => true ) );
+		$this->reset_post_gates_cache();
+		$this->give_reader_subscriptions( array( 20 => 1_600_000_000 ) );
+
+		$user_state = $this->get_reader_user_state();
+
+		$this->assertSame( 'SUBSCRIBER', $user_state['grantReason'] );
+		$this->assertSame( $user_state['registrationTimestamp'], $user_state['subscriptionTimestamp'] );
+	}
+
+	/**
+	 * A gate that refuses the reader and has a layout to show ends the walk, as
+	 * it does in Access Control. On an exempt post the reader still has access,
+	 * and a subscription accepted further down the list did not grant it.
+	 */
+	public function test_subscription_timestamp_stops_at_a_refusing_gate_with_a_layout() {
+		$this->create_gate_with_access_rules( array( array( $this->subscription_rule( 10 ) ) ), 1 );
+		$this->create_gate_with_access_rules( array( array( $this->subscription_rule( 20 ) ) ), 2 );
+		update_post_meta( $this->post_id, \Newspack\Content_Restriction_Control::IS_EXEMPT_META_KEY, true );
+		$this->give_reader_subscriptions( array( 20 => 1_600_000_000 ) );
+
+		$user_state = $this->get_reader_user_state();
+
+		$this->assertSame( 'SUBSCRIBER', $user_state['grantReason'] );
+		$this->assertSame( $user_state['registrationTimestamp'], $user_state['subscriptionTimestamp'] );
+	}
+
+	/**
+	 * A gate that refuses the reader with no layout to show is passed over, so
+	 * the next gate decides.
+	 */
+	public function test_subscription_timestamp_skips_a_refusing_gate_with_no_layout() {
+		$refusing_gate_id = $this->create_gate_with_access_rules( array( array( $this->subscription_rule( 10 ) ) ), 1 );
+		$this->create_gate_with_access_rules( array( array( $this->subscription_rule( 20 ) ) ), 2 );
+		$custom_access                   = get_post_meta( $refusing_gate_id, 'custom_access', true );
+		$custom_access['gate_layout_id'] = 0;
+		update_post_meta( $refusing_gate_id, 'custom_access', $custom_access );
+		$this->reset_post_gates_cache();
+		$this->give_reader_subscriptions( array( 20 => 1_600_000_000 ) );
+
+		$this->assertSame( 1_600_000_000, $this->get_reader_user_state()['subscriptionTimestamp'] );
+	}
+
+	/**
+	 * Google discards the whole userState when `subscriptionTimestamp` is in
+	 * the future, which would turn a subscriber into an anonymous visitor.
+	 */
+	public function test_subscription_timestamp_skips_a_future_start_date() {
+		$this->create_gate_with_access_rules( array( array( $this->subscription_rule( 20 ) ) ) );
+		$this->give_reader_subscriptions( array( 20 => time() + DAY_IN_SECONDS ) );
+
+		$user_state = $this->get_reader_user_state();
+
+		$this->assertSame( $user_state['registrationTimestamp'], $user_state['subscriptionTimestamp'] );
 	}
 
 	/**
@@ -585,14 +826,8 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 	/**
 	 * The restriction state becomes knowable as soon as the Access Control
 	 * implementation registers on the filter.
-	 *
-	 * Only the predicate is exercised: the stand-in callback names a method
-	 * the pinned Newspack release does not carry, so firing the filter would
-	 * fatal. What the predicate reads is the registration, not the result.
 	 */
 	public function test_restriction_state_available_once_access_control_implements_the_filter() {
-		add_filter( 'newspack_post_has_restrictions', DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK );
-
 		$this->assertTrue(
 			DependencyChecker::is_newspack_restriction_state_available(),
 			'The restriction state is knowable once the Access Control implementation is registered.'
@@ -609,26 +844,9 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 	/**
 	 * The callback name is a cross-repo contract: if the Newspack plugin ever
 	 * renames or relocates its implementation, this plugin goes permanently
-	 * quiet with no other symptom. The test above cannot catch that - it
-	 * registers the same constant it then looks for - so assert the constant
-	 * against the real class.
-	 *
-	 * Skips while the pinned Newspack release predates the implementation, and
-	 * starts asserting the moment that pin moves past it.
+	 * quiet with no other symptom, so assert the constant against the real class.
 	 */
 	public function test_restriction_callback_constant_matches_the_newspack_implementation() {
-		list( $class_name, $method_name ) = DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK;
-
-		if ( ! method_exists( $class_name, $method_name ) ) {
-			$this->markTestSkipped(
-				sprintf(
-					'The pinned Newspack release has no %s::%s(). Once the pin moves past the content-gate implementation, this test asserts the contract instead of skipping.',
-					$class_name,
-					$method_name
-				)
-			);
-		}
-
 		$this->assertTrue(
 			is_callable( DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK ),
 			'The pinned callback must name a real, callable Newspack implementation.'
@@ -649,19 +867,16 @@ class Newspack_Test_Integration_Access_Control extends WP_UnitTestCase {
 	 * from the Newspack plugin's: EA may be deployed to an Access Control site
 	 * ahead of the implementation without mislabeling gated content.
 	 *
-	 * The pinned Newspack release predates that implementation, so this test
-	 * exercises the real "too early" state rather than a simulated one.
+	 * The pinned Newspack release carries the implementation, so removing its
+	 * callback recreates the state of a release that predates it.
 	 */
 	public function test_ld_json_skipped_when_restriction_state_is_unknowable() {
 		$this->go_to( get_permalink( $this->post_id ) );
+		remove_filter( 'newspack_post_has_restrictions', DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK );
 
 		$this->assertNotFalse(
 			has_filter( 'newspack_post_has_restrictions' ),
 			'Guards the reason the check is by name: Woo Memberships registers on this filter even with Memberships inactive, so a bare has_filter() would wrongly report the state as knowable.'
-		);
-		$this->assertFalse(
-			has_filter( 'newspack_post_has_restrictions', DependencyChecker::NEWSPACK_POST_HAS_RESTRICTIONS_CALLBACK ),
-			'Guards the premise: the pinned Newspack release must not carry the Access Control implementation, or this test proves nothing.'
 		);
 		$this->assertFalse(
 			DependencyChecker::is_newspack_restriction_state_available(),

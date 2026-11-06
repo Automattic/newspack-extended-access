@@ -35,7 +35,7 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 		// previously downloaded copy in the test WP install takes precedence
 		// (Plugin_Manager::install skips existing directories), so delete it
 		// when bumping the pin.
-		$newspack_release_zip = 'https://github.com/Automattic/newspack-plugin/releases/download/v6.42.3/newspack-plugin.zip';
+		$newspack_release_zip = 'https://github.com/Automattic/newspack-workspace/releases/download/newspack%406.56.4/newspack-plugin.zip';
 		echo esc_html( 'Installing Newspack...' . PHP_EOL );
 		\Newspack\ExtendedAccess\Plugin_Manager::install( $newspack_release_zip );
 
@@ -479,20 +479,503 @@ class Newspack_Test_API_Controller extends WP_UnitTestCase {
 	 * access for the post they logged in from.
 	 */
 	public function test_registration__existing_user_subscriber() {
-		wp_set_current_user( 0 );
-		$this->mock_google_token( 'reader@test.com', '0123456789' );
-
-		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/google/register' );
-		$request->set_header( 'Content-Type', 'text/plain' );
-		$request->set_header( 'X-WP-Nonce', wp_create_nonce( 'wp_rest' ) );
-		$request->set_header( 'X-WP-Post-ID', $this->post );
-		$request->set_body( 'mock-jwt' );
-
-		$response      = $this->server->dispatch( $request );
-		$response_data = $response->get_data();
+		$response_data = $this->dispatch_registration(
+			$this->sign_google_token(
+				array(
+					'email'          => get_userdata( $this->reader )->user_email,
+					'email_verified' => true,
+					'hd'             => 'example.test',
+				)
+			)
+		)->get_data();
 
 		$this->assertTrue( $response_data['granted'], 'Existing user logging in should be granted metered access.' );
 		$this->assertEquals( 'METERING', $response_data['grantReason'] );
+	}
+
+	/**
+	 * Signs an ID token with a key the plugin trusts, as Google would.
+	 *
+	 * @param array $claims Claims that add to or replace the defaults.
+	 * @return string The JWT.
+	 */
+	private function sign_google_token( $claims ) {
+		$key_id      = 'test-key-id';
+		$private_key = openssl_pkey_new(
+			array(
+				'private_key_bits' => 2048,
+				'private_key_type' => OPENSSL_KEYTYPE_RSA,
+			)
+		);
+		$key_details = openssl_pkey_get_details( $private_key );
+		$base64_url  = function ( $value ) {
+			return rtrim( strtr( base64_encode( $value ), '+/', '-_' ), '=' );
+		};
+
+		update_option(
+			\Newspack\ExtendedAccess\Google_Jwt::CACHE_OPTION_NAME,
+			array(
+				'keys' => array(
+					array(
+						'kty' => 'RSA',
+						'kid' => $key_id,
+						'n'   => $base64_url( $key_details['rsa']['n'] ),
+						'e'   => $base64_url( $key_details['rsa']['e'] ),
+						'alg' => 'RS256',
+						'use' => 'sig',
+					),
+				),
+			)
+		);
+		update_option( \Newspack\ExtendedAccess\Google_Jwt::CACHE_TIMESTAMP_OPTION_NAME, time() );
+		update_option( \Newspack\ExtendedAccess\Admin_Settings::GOOGLE_CLIENT_API_ID_OPTION, 'client-id.apps.googleusercontent.com' );
+
+		return \Firebase\JWT\JWT::encode(
+			array_merge(
+				array(
+					'iss' => 'https://accounts.google.com',
+					'aud' => 'client-id.apps.googleusercontent.com',
+					'sub' => '0123456789',
+					'exp' => time() + HOUR_IN_SECONDS,
+				),
+				$claims
+			),
+			$private_key,
+			'RS256',
+			$key_id
+		);
+	}
+
+	/**
+	 * Posts a token to the registration endpoint as an anonymous visitor.
+	 *
+	 * @param string $token The raw request body.
+	 * @return WP_REST_Response
+	 */
+	private function dispatch_registration( $token ) {
+		wp_set_current_user( 0 );
+		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/google/register' );
+		$request->set_header( 'X-WP-Post-ID', $this->post );
+		$request->set_body( $token );
+		return $this->server->dispatch( $request );
+	}
+
+	/**
+	 * Whether the reader with an email address is verified.
+	 *
+	 * @param string $email Email address.
+	 * @return bool
+	 */
+	private function is_email_verified( $email ) {
+		$user = get_user_by( 'email', $email );
+		$this->assertInstanceOf( WP_User::class, $user, 'The account must exist.' );
+		return (bool) get_user_meta( $user->ID, \Newspack\Reader_Activation::EMAIL_VERIFIED, true );
+	}
+
+	/**
+	 * A new account starts verified only where Google is authoritative for the
+	 * address: Gmail, or a verified address on a hosted domain. The reader's new
+	 * session survives the session cleanup that verifying a reader triggers.
+	 *
+	 * @dataProvider provide_google_authoritative_claims
+	 *
+	 * @param array $claims Claims of the token.
+	 */
+	public function test_registration__authoritative_address_verifies_a_new_account( $claims ) {
+		$response = $this->dispatch_registration( $this->sign_google_token( $claims ) );
+
+		$this->assertTrue( $response->get_data()['granted'] );
+		$this->assertTrue( $this->is_email_verified( $claims['email'] ) );
+		// phpcs:ignore WordPressVIPMinimum.Variables.RestrictedVariables.cache_constraints___COOKIE, WordPress.Security.ValidatedSanitizedInput
+		$this->assertNotFalse( wp_validate_auth_cookie( $_COOKIE[ LOGGED_IN_COOKIE ], 'logged_in' ), 'The session sent to the browser must stay valid.' );
+	}
+
+	/**
+	 * Tokens for addresses Google is authoritative for.
+	 *
+	 * @return array
+	 */
+	public function provide_google_authoritative_claims() {
+		return array(
+			'gmail'           => array(
+				array(
+					'email'          => 'new-reader@gmail.com',
+					'email_verified' => true,
+				),
+			),
+			'gmail, any case' => array(
+				array(
+					'email'          => 'New-Reader@GMAIL.com',
+					'email_verified' => true,
+				),
+			),
+			'hosted domain'   => array(
+				array(
+					'email'          => 'new-reader@example.test',
+					'email_verified' => true,
+					'hd'             => 'example.test',
+				),
+			),
+		);
+	}
+
+	/**
+	 * A token that does not settle the address still creates an account, and the
+	 * reader has to verify it the regular way.
+	 *
+	 * @dataProvider provide_non_authoritative_claims
+	 *
+	 * @param array $claims Claims of the token.
+	 */
+	public function test_registration__non_authoritative_address_stays_unverified( $claims ) {
+		$response = $this->dispatch_registration(
+			$this->sign_google_token( array_merge( array( 'email' => 'unconfirmed@example.test' ), $claims ) )
+		);
+
+		$this->assertTrue( $response->get_data()['granted'] );
+		$this->assertFalse( $this->is_email_verified( 'unconfirmed@example.test' ) );
+	}
+
+	/**
+	 * Tokens that leave Google non-authoritative for the address. The first is
+	 * the subtle one: Google checked the address once, and ownership may have
+	 * changed since.
+	 *
+	 * @return array
+	 */
+	public function provide_non_authoritative_claims() {
+		return array(
+			'verified, no hosted domain' => array( array( 'email_verified' => true ) ),
+			'hosted domain, claim false' => array(
+				array(
+					'email_verified' => false,
+					'hd'             => 'example.test',
+				),
+			),
+			'claim is false'             => array( array( 'email_verified' => false ) ),
+			'claim is absent'            => array( array() ),
+			'claim is string'            => array( array( 'email_verified' => 'true' ) ),
+		);
+	}
+
+	/**
+	 * The decoded token filter can replace the token, so what it returns proves
+	 * nothing about the address, even when its claims look authoritative.
+	 */
+	public function test_registration__token_from_the_filter_does_not_verify() {
+		$this->mock_google_token( 'fabricated@gmail.com' );
+
+		$this->dispatch_registration( 'not-a-signed-token' );
+
+		$this->assertFalse( $this->is_email_verified( 'fabricated@gmail.com' ) );
+	}
+
+	/**
+	 * A filter that edits a signed token in place keeps the signature check
+	 * green, so the address Google vouched for has to be the one registered.
+	 */
+	public function test_registration__address_swapped_by_the_filter_does_not_verify() {
+		add_filter(
+			'newspack_extended_access_decoded_token',
+			function ( $token ) {
+				$token->email = 'swapped@gmail.com';
+				return $token;
+			}
+		);
+
+		$this->dispatch_registration(
+			$this->sign_google_token(
+				array(
+					'email'          => 'signed@gmail.com',
+					'email_verified' => true,
+				)
+			)
+		);
+
+		$this->assertFalse( $this->is_email_verified( 'swapped@gmail.com' ) );
+	}
+
+	/**
+	 * Someone else may have created the account and still hold its password, so
+	 * a Google sign-in links and logs the reader in but does not vouch for the
+	 * account.
+	 */
+	public function test_registration__existing_account_stays_unverified() {
+		$reader_email = get_userdata( $this->reader )->user_email;
+
+		$response = $this->dispatch_registration(
+			$this->sign_google_token(
+				array(
+					'email'          => $reader_email,
+					'email_verified' => true,
+					'hd'             => 'example.test',
+				)
+			)
+		);
+
+		$this->assertTrue( $response->get_data()['granted'] );
+		$this->assertSame( $this->reader, get_current_user_id() );
+		$this->assertSame( '0123456789', get_user_meta( $this->reader, 'extended_access_sub', true ) );
+		$this->assertFalse( $this->is_email_verified( $reader_email ) );
+	}
+
+	/**
+	 * An email match can link an existing account only where Google is
+	 * authoritative for the address, since the address is all that ties this
+	 * token to the account.
+	 *
+	 * @dataProvider provide_non_authoritative_claims
+	 *
+	 * @param array $claims Claims of the token.
+	 */
+	public function test_registration__non_authoritative_address_cannot_open_an_existing_account( $claims ) {
+		$reader_email = get_userdata( $this->reader )->user_email;
+
+		$response = $this->dispatch_registration(
+			$this->sign_google_token( array_merge( array( 'email' => $reader_email ), $claims ) )
+		);
+
+		$this->assertSame( 403, $response->get_status() );
+		$this->assertSame( 0, get_current_user_id() );
+		$this->assertEmpty( get_user_meta( $this->reader, 'extended_access_sub', true ) );
+	}
+
+	/**
+	 * Google's `sub` identifies the reader and an address can move between Google
+	 * Accounts, so a linked account answers to its `sub`, not to its address. A
+	 * reader who changed their Google address keeps their account, on an address
+	 * Google is not authoritative for too, and the userState keeps the account's.
+	 */
+	public function test_registration__linked_account_follows_its_sub_when_the_address_changes() {
+		update_user_meta( $this->reader, 'extended_access_sub', 'linked-sub' );
+
+		$response = $this->dispatch_registration(
+			$this->sign_google_token(
+				array(
+					'sub'   => 'linked-sub',
+					'email' => 'changed-address@example.test',
+				)
+			)
+		);
+
+		$this->assertSame( $this->reader, get_current_user_id() );
+		$this->assertSame( get_userdata( $this->reader )->user_email, $response->get_data()['email'] );
+		$this->assertFalse( get_user_by( 'email', 'changed-address@example.test' ), 'No second account may appear.' );
+	}
+
+	/**
+	 * An account linked to one Google Account stays closed to another, even one
+	 * Google is authoritative for: the same address on a different `sub` is a
+	 * different person.
+	 */
+	public function test_registration__account_linked_to_another_sub_stays_closed() {
+		update_user_meta( $this->reader, 'extended_access_sub', 'linked-sub' );
+
+		$response = $this->dispatch_registration(
+			$this->sign_google_token(
+				array(
+					'sub'            => 'other-sub',
+					'email'          => get_userdata( $this->reader )->user_email,
+					'email_verified' => true,
+					'hd'             => 'example.test',
+				)
+			)
+		);
+
+		$this->assertSame( 403, $response->get_status() );
+		$this->assertSame( 0, get_current_user_id() );
+		$this->assertSame( 'linked-sub', get_user_meta( $this->reader, 'extended_access_sub', true ) );
+	}
+
+	/**
+	 * The filter can edit a signed token's address, so it cannot be what opens an
+	 * existing account either.
+	 */
+	public function test_registration__address_swapped_by_the_filter_opens_no_account() {
+		$reader_email = get_userdata( $this->reader )->user_email;
+		add_filter(
+			'newspack_extended_access_decoded_token',
+			function ( $token ) use ( $reader_email ) {
+				$token->email = $reader_email;
+				return $token;
+			}
+		);
+
+		$response = $this->dispatch_registration(
+			$this->sign_google_token(
+				array(
+					'email'          => 'signed@example.test',
+					'email_verified' => true,
+					'hd'             => 'example.test',
+				)
+			)
+		);
+
+		$this->assertSame( 403, $response->get_status() );
+		$this->assertSame( 0, get_current_user_id() );
+	}
+
+	/**
+	 * Linked accounts come first: a reader whose Google address now belongs to
+	 * another account still reaches their own, and the other account stays unlinked.
+	 */
+	public function test_registration__linked_account_wins_over_the_address_match() {
+		$other_reader = \Newspack\Reader_Activation::register_reader( 'other-reader@example.test', '', false );
+		update_user_meta( $this->reader, 'extended_access_sub', 'linked-sub' );
+
+		$this->dispatch_registration(
+			$this->sign_google_token(
+				array(
+					'sub'            => 'linked-sub',
+					'email'          => 'other-reader@example.test',
+					'email_verified' => true,
+					'hd'             => 'example.test',
+				)
+			)
+		);
+
+		$this->assertSame( $this->reader, get_current_user_id() );
+		$this->assertEmpty( get_user_meta( $other_reader, 'extended_access_sub', true ) );
+	}
+
+	/**
+	 * Earlier releases made a second account when a Google address changed, so a
+	 * `sub` can sit on two accounts. The one with the token's address is the one
+	 * the reader has been using.
+	 */
+	public function test_registration__shared_sub_prefers_the_account_with_the_address() {
+		$newer_reader = \Newspack\Reader_Activation::register_reader( 'newer-reader@example.test', '', false );
+		update_user_meta( $this->reader, 'extended_access_sub', 'shared-sub' );
+		update_user_meta( $newer_reader, 'extended_access_sub', 'shared-sub' );
+
+		$this->dispatch_registration(
+			$this->sign_google_token(
+				array(
+					'sub'   => 'shared-sub',
+					'email' => 'newer-reader@example.test',
+				)
+			)
+		);
+
+		$this->assertSame( $newer_reader, get_current_user_id() );
+	}
+
+	/**
+	 * A token with no `sub` is refused, or the lookup would read it as "any
+	 * linked account".
+	 */
+	public function test_registration__token_without_a_sub_matches_no_linked_account() {
+		update_user_meta( $this->reader, 'extended_access_sub', 'linked-sub' );
+		add_filter(
+			'newspack_extended_access_decoded_token',
+			function () {
+				return (object) array( 'email' => 'no-sub@example.test' );
+			}
+		);
+
+		$response = $this->dispatch_registration( 'not-a-signed-token' );
+
+		$this->assertSame( 400, $response->get_status() );
+		$this->assertSame( 0, get_current_user_id() );
+	}
+
+	/**
+	 * A returning reader keeps their account through the link registration
+	 * stores, on an address Google is not authoritative for too.
+	 */
+	public function test_registration__new_account_is_linked_to_its_sub() {
+		$first_sign_in = array(
+			'sub'   => 'new-sub',
+			'email' => 'returning@example.test',
+		);
+
+		$this->dispatch_registration( $this->sign_google_token( $first_sign_in ) );
+		$account_id = get_current_user_id();
+		$this->dispatch_registration( $this->sign_google_token( $first_sign_in ) );
+
+		$this->assertGreaterThan( 0, $account_id );
+		$this->assertSame( $account_id, get_current_user_id() );
+	}
+
+	/**
+	 * Verifying an account proves who holds the address. A link made before that
+	 * proved nothing about it, so it ends here, as the reader's sessions do.
+	 */
+	public function test_registration__verifying_an_account_ends_its_link() {
+		$sign_in = array(
+			'sub'   => 'unproven-sub',
+			'email' => 'unproven@example.test',
+		);
+		$this->dispatch_registration( $this->sign_google_token( $sign_in ) );
+		$account_id = get_current_user_id();
+
+		wp_set_current_user( 0 );
+		\Newspack\Reader_Activation::set_reader_verified( $account_id );
+
+		$response = $this->dispatch_registration( $this->sign_google_token( $sign_in ) );
+
+		$this->assertSame( 403, $response->get_status() );
+		$this->assertSame( 0, get_current_user_id() );
+	}
+
+	/**
+	 * Registration verifies first and links second, so an account that starts
+	 * verified keeps its link.
+	 */
+	public function test_registration__account_that_starts_verified_keeps_its_link() {
+		$this->dispatch_registration(
+			$this->sign_google_token(
+				array(
+					'sub'            => 'kept-sub',
+					'email'          => 'kept@gmail.com',
+					'email_verified' => true,
+				)
+			)
+		);
+
+		$this->assertSame( 'kept-sub', get_user_meta( get_current_user_id(), 'extended_access_sub', true ) );
+	}
+
+	/**
+	 * An account that can no longer sign in as a reader is a refusal, not a
+	 * server fault.
+	 */
+	public function test_registration__linked_non_reader_is_refused() {
+		$editor = $this->factory->user->create( array( 'role' => 'editor' ) );
+		update_user_meta( $editor, 'extended_access_sub', 'editor-sub' );
+
+		$response = $this->dispatch_registration(
+			$this->sign_google_token(
+				array(
+					'sub'   => 'editor-sub',
+					'email' => get_userdata( $editor )->user_email,
+				)
+			)
+		);
+
+		$this->assertSame( 403, $response->get_status() );
+		$this->assertSame( 0, get_current_user_id() );
+	}
+
+	/**
+	 * A registration that fails grants nothing.
+	 */
+	public function test_registration__failed_registration_grants_nothing() {
+		wp_set_current_user( $this->subscriber );
+		$request = new WP_REST_Request( 'POST', $this->api_namespace . '/google/register' );
+		$request->set_body(
+			$this->sign_google_token(
+				array(
+					'email'          => 'unregistered@gmail.com',
+					'email_verified' => true,
+				)
+			)
+		);
+
+		$response = $this->server->dispatch( $request );
+
+		$this->assertSame( 403, $response->get_status() );
+		$this->assertFalse( get_user_by( 'email', 'unregistered@gmail.com' ) );
 	}
 
 	/**

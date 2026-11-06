@@ -10,7 +10,7 @@ namespace Newspack\ExtendedAccess;
 
 use Newspack;
 
-define( 'NEWSPACK_SWG_SCRIPT_VERSION', '1.0.4' );
+define( 'NEWSPACK_SWG_SCRIPT_VERSION', '1.0.6' );
 
 /**
  * Registers required scripts for SwG implementation
@@ -32,6 +32,25 @@ class Google_ExtendedAccess {
 		add_action( 'wp_head', array( __CLASS__, 'add_extended_access_ld_json' ), -1 );
 		add_action( 'wp_enqueue_scripts', array( __CLASS__, 'enqueue_script' ) );
 		add_action( 'query_vars', array( __CLASS__, 'add_extended_access_query_vars' ) );
+		add_filter( 'perfmatters_delay_js_exclusions', array( __CLASS__, 'add_perfmatters_js_exclusions' ) );
+		add_filter( 'perfmatters_defer_js_exclusions', array( __CLASS__, 'add_perfmatters_js_exclusions' ) );
+	}
+
+	/**
+	 * Keeps Perfmatters from holding back the scripts behind the registration wall.
+	 *
+	 * With Delay JS set to `all`, the wall otherwise stays hidden until the
+	 * reader's first interaction. Deferring `newspack-swg-js-extra` would run the
+	 * settings after the script that reads them. Each entry is a script tag's `id`.
+	 *
+	 * @param string[] $exclusions The Perfmatters exclusions.
+	 * @return string[] The exclusions with the Extended Access scripts added.
+	 */
+	public static function add_perfmatters_js_exclusions( $exclusions ) {
+		return array_merge(
+			(array) $exclusions,
+			array( 'google-account-gsi-client', 'google-news-swg', 'google-news-swg-gaa', 'newspack-swg-js', 'newspack-swg-js-extra' )
+		);
 	}
 
 	/**
@@ -211,12 +230,17 @@ class Google_ExtendedAccess {
 			)
 		);
 
+		/*
+		 * `newspack-swg.js` is async and optimization plugins change the order, so
+		 * either script can run first. The one that runs second starts metering.
+		 * The other half of this is at the end of newspack-swg.js.
+		 */
 		wp_print_script_tag(
 			array(
 				'id'     => 'google-news-swg-gaa',
 				'defer'  => true,
 				'src'    => esc_url( 'https://news.google.com/swg/js/v1/swg-gaa.js' ),
-				'onload' => 'initGaaMetering()',
+				'onload' => 'window.initGaaMetering && initGaaMetering()',
 			)
 		);
 	}

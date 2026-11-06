@@ -35,6 +35,10 @@ function parseJwt(token) {
  * Initializes GaaMetering for SwG.
  */
 function initGaaMetering() {
+	if ( window.newspackGaaMeteringStarted ) {
+		return;
+	}
+	window.newspackGaaMeteringStarted = true;
 
 	/**
 	 * Referrers to be allowed.
@@ -84,7 +88,9 @@ function initGaaMetering() {
 					authenticationSettings.nonce = refreshedNonce;
 				}
 				if (!response.ok) {
-					throw new Error(`Extended Access request to ${endpoint} failed with status ${response.status}.`);
+					const error = new Error(`Extended Access request to ${endpoint} failed with status ${response.status}.`);
+					error.status = response.status;
+					throw error;
 				}
 				return response.json();
 			}
@@ -92,24 +98,27 @@ function initGaaMetering() {
 	}
 
 	/**
+	 * Sends the reader to the login page, to return to this article afterwards.
+	 */
+	function redirectToLogin() {
+		// Capture the full URL, including query parameters, to return the reader to
+		// after login. The Extended Access parameters live there and not in the
+		// permalink, so dropping them leaves the flow unable to resume.
+		const loginUrl = new URL(authenticationSettings.myAccountURL, window.location.origin);
+		// 'redirect' param is used by newspack plugin's reader-activation to prepare auth callback URL.
+		loginUrl.searchParams.set('redirect', window.location.href);
+		// 'redirect_to' is what wp-login.php honours, on sites with no My Account page.
+		loginUrl.searchParams.set('redirect_to', window.location.href);
+		// Redirect to a login page for existing users to login.
+		window.location = loginUrl.toString();
+	}
+
+	/**
 	 * Login Existing User Promise callback handler.
 	 */
 	handleLoginPromise = new Promise(
 		() => {
-			GaaMetering.getLoginPromise().then(
-				() => {
-					// Capture the full URL, including query parameters, to return the reader to
-					// after login. The Extended Access parameters live there and not in the
-					// permalink, so dropping them leaves the flow unable to resume.
-					const loginUrl = new URL(authenticationSettings.myAccountURL, window.location.origin);
-					// 'redirect' param is used by newspack plugin's reader-activation to prepare auth callback URL.
-					loginUrl.searchParams.set('redirect', window.location.href);
-					// 'redirect_to' is what wp-login.php honours, on sites with no My Account page.
-					loginUrl.searchParams.set('redirect_to', window.location.href);
-					// Redirect to a login page for existing users to login.
-					window.location = loginUrl.toString();
-				}
-			);
+			GaaMetering.getLoginPromise().then(redirectToLogin);
 		}
 	);
 
@@ -134,9 +143,10 @@ function initGaaMetering() {
 					)
 						.then(
 							userState => {
-								// A metered grant is recorded as a server-side cookie, so the
-								// article only becomes readable on the next render.
-								if (userState.grantReason === 'METERING' && userState.granted === true) {
+								// This page was rendered for an anonymous visitor, so any grant
+								// only shows on the next render. That includes SUBSCRIBER: a
+								// Google-confirmed reader can satisfy a registration gate at once.
+								if (userState.granted === true) {
 									window.location.reload();
 								}
 								resolve(userState);
@@ -145,6 +155,12 @@ function initGaaMetering() {
 						.catch(
 							error => {
 								console.error(error);
+								// The site refused this Google Account for an existing account. A
+								// second Google click sends nothing, so the login page is the way on.
+								if (error.status === 403) {
+									redirectToLogin();
+									return;
+								}
 								// Settle rather than hang: an unresolved promise leaves
 								// GaaMetering waiting forever with the regwall on screen.
 								resolve({ granted: false });
@@ -232,4 +248,10 @@ function initGaaMetering() {
 			showPaywall: showPaywall,
 		}
 	);
+}
+
+// `swg-gaa.js` starts metering from its onload attribute when this script runs
+// first. When `swg-gaa.js` runs first, that attribute finds nothing to call.
+if ( window.GaaMetering ) {
+	initGaaMetering();
 }

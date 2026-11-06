@@ -36,10 +36,16 @@ class REST_Controller {
 	const EXTENDED_ACCESS_ENTRY_META = 'newspack_extended_access_entry';
 
 	/**
+	 * User meta linking an account to a Google Account, holding Google's `sub`.
+	 */
+	const GOOGLE_SUB_META = 'extended_access_sub';
+
+	/**
 	 * Set up hooks and filters.
 	 */
 	public static function init() {
 		add_action( 'rest_api_init', array( __CLASS__, 'register_api_endpoints' ) );
+		add_action( 'newspack_reader_verified', array( __CLASS__, 'unlink_google_account' ) );
 	}
 
 	/**
@@ -116,7 +122,7 @@ class REST_Controller {
 	 * @return bool
 	 */
 	private static function reader_is_in_extended_access_flow( $user_id ) {
-		if ( get_user_meta( $user_id, 'extended_access_sub', true ) ) {
+		if ( get_user_meta( $user_id, self::GOOGLE_SUB_META, true ) ) {
 			return true;
 		}
 		$entry = (int) get_user_meta( $user_id, self::EXTENDED_ACCESS_ENTRY_META, true );
@@ -156,36 +162,194 @@ class REST_Controller {
 	 * Resolve the `subscriptionTimestamp` for the userState payload.
 	 *
 	 * Per the Extended Access spec this should reflect when the user became a
-	 * subscriber, not when their WP account was created. We use the earliest
-	 * start date across the user's active WC Memberships; if none can be
-	 * resolved we fall back to the supplied registration timestamp so the
-	 * response shape is still spec-compliant.
+	 * subscriber, not when their WP account was created. The active gating
+	 * system supplies the candidates, and the earliest wins. Google requires
+	 * the field for a SUBSCRIBER grant, so access that no subscription granted
+	 * reports the supplied registration timestamp. Google discards a userState
+	 * whose timestamp is in the future, so those candidates are dropped.
 	 *
-	 * @param int $user_id              The user ID.
-	 * @param int $fallback_timestamp   Timestamp to return when no membership can be resolved.
+	 * @param int $user_id            The user ID.
+	 * @param int $post_id            The post the reader has access to.
+	 * @param int $fallback_timestamp Timestamp to return when no start date can be resolved.
 	 * @return int Unix timestamp.
 	 */
-	private static function get_subscription_timestamp( $user_id, $fallback_timestamp ) {
+	private static function get_subscription_timestamp( $user_id, $post_id, $fallback_timestamp ) {
+		$start_dates = DependencyChecker::is_wc_memberships_loaded()
+			? self::get_membership_start_dates( $user_id )
+			: self::get_granting_subscription_start_dates( $user_id, $post_id );
+
+		$now         = time();
+		$start_dates = array_filter(
+			$start_dates,
+			function ( $start_date ) use ( $now ) {
+				return $start_date > 0 && $start_date <= $now;
+			}
+		);
+
+		return empty( $start_dates ) ? $fallback_timestamp : min( $start_dates );
+	}
+
+	/**
+	 * Get the start dates of the reader's active WooCommerce Memberships.
+	 *
+	 * @param int $user_id The user ID.
+	 * @return int[] Unix timestamps.
+	 */
+	private static function get_membership_start_dates( $user_id ) {
 		if ( ! function_exists( 'wc_memberships_get_user_active_memberships' ) ) {
-			return $fallback_timestamp;
+			return array();
 		}
 
-		$memberships = wc_memberships_get_user_active_memberships( $user_id );
-		if ( empty( $memberships ) ) {
-			return $fallback_timestamp;
+		$start_dates = array();
+		foreach ( (array) wc_memberships_get_user_active_memberships( $user_id ) as $membership ) {
+			if ( is_object( $membership ) && method_exists( $membership, 'get_start_date' ) ) {
+				$start_dates[] = (int) $membership->get_start_date( 'timestamp' );
+			}
+		}
+		return $start_dates;
+	}
+
+	/**
+	 * Get the start dates of the subscriptions that grant the reader access to
+	 * a post under Access Control.
+	 *
+	 * This follows the order Access Control evaluates a post in: gates run by
+	 * priority and the first one that lets the reader through decides access.
+	 * Inside that gate, a subscription counts only when it satisfies a rule in
+	 * a rule group the reader passes, so a recurring donation next to a gated
+	 * product subscription is not reported.
+	 *
+	 * Access that a filter grants, such as a subscription held on another
+	 * network site, has no local record and so no start date here.
+	 *
+	 * @param int $user_id The user ID.
+	 * @param int $post_id The post ID.
+	 * @return int[] Unix timestamps.
+	 */
+	private static function get_granting_subscription_start_dates( $user_id, $post_id ) {
+		if (
+			! $post_id
+			|| ! function_exists( 'wcs_get_subscription' )
+			|| ! is_callable( array( '\Newspack\Content_Restriction_Control', 'evaluate_gate' ) )
+		) {
+			return array();
 		}
 
-		$earliest = null;
-		foreach ( $memberships as $membership ) {
-			$start = is_object( $membership ) && method_exists( $membership, 'get_start_date' )
-				? (int) $membership->get_start_date( 'timestamp' )
-				: 0;
-			if ( $start > 0 && ( null === $earliest || $start < $earliest ) ) {
-				$earliest = $start;
+		foreach ( \Newspack\Content_Restriction_Control::get_post_gates( $post_id ) as $gate ) {
+			$verdict = \Newspack\Content_Restriction_Control::evaluate_gate( $gate, $user_id );
+			if ( ! $verdict['restricted'] ) {
+				return empty( $gate['custom_access']['active'] ) ? array() : self::get_gate_subscription_start_dates( $gate, $user_id );
+			}
+			// A refusing gate with a layout ends the walk, so access came from elsewhere.
+			if ( $verdict['gate_layout_id'] ) {
+				return array();
+			}
+		}
+		return array();
+	}
+
+	/**
+	 * Get the start dates of the subscriptions that satisfy a gate's custom
+	 * access rules for the reader.
+	 *
+	 * @param array $gate    Gate data.
+	 * @param int   $user_id The user ID.
+	 * @return int[] Unix timestamps.
+	 */
+	private static function get_gate_subscription_start_dates( $gate, $user_id ) {
+		$evaluation       = \Newspack\User_Gate_Access::evaluate_gate_for_user( $gate, $user_id );
+		$subscription_ids = array();
+		foreach ( $evaluation['groups'] as $group ) {
+			if ( ! $group['passes'] ) {
+				continue;
+			}
+			foreach ( $group['rules'] as $rule ) {
+				if ( 'subscription' !== $rule['slug'] ) {
+					continue;
+				}
+				// The gate's own settings decide which statuses count, as they did for access.
+				$subscription_ids = array_merge(
+					$subscription_ids,
+					\Newspack\Access_Rules::with_evaluation_context(
+						$evaluation['context'],
+						function () use ( $user_id, $rule ) {
+							return \Newspack\Access_Rules::get_active_subscription_ids( $user_id, $rule['value'] );
+						}
+					)
+				);
 			}
 		}
 
-		return null === $earliest ? $fallback_timestamp : $earliest;
+		$start_dates = array();
+		foreach ( array_unique( $subscription_ids ) as $subscription_id ) {
+			$subscription = wcs_get_subscription( $subscription_id );
+			if ( $subscription ) {
+				$start_dates[] = (int) $subscription->get_time( 'start' );
+			}
+		}
+		return $start_dates;
+	}
+
+	/**
+	 * Get the email address in an ID token, if Google is authoritative for it.
+	 *
+	 * Google is authoritative for Gmail addresses and for verified addresses on
+	 * a Workspace or Cloud hosted domain, which the `hd` claim names. Any other
+	 * Google Account uses an address Google checked once, whose ownership may
+	 * have changed since, so `email_verified` alone does not settle it.
+	 *
+	 * @see https://developers.google.com/identity/gsi/web/guides/verify-google-id-token
+	 *
+	 * @param object|\WP_Error $token An ID token.
+	 * @return string|null The address, or null if Google is not authoritative for it.
+	 */
+	private static function get_google_authoritative_email( $token ) {
+		if ( is_wp_error( $token ) || true !== ( $token->email_verified ?? null ) || empty( $token->email ) ) {
+			return null;
+		}
+		$is_gmail = str_ends_with( strtolower( $token->email ), '@gmail.com' );
+		return $is_gmail || ! empty( $token->hd ) ? $token->email : null;
+	}
+
+	/**
+	 * Find the account linked to a Google Account.
+	 *
+	 * Earlier releases could leave a `sub` on two accounts when a reader's Google
+	 * address changed. The one with the token's address is the one in use.
+	 *
+	 * @param string $sub   The `sub` claim of an ID token.
+	 * @param string $email The address in the same token.
+	 * @return \WP_User|false The linked account, if there is one.
+	 */
+	private static function get_user_by_google_sub( $sub, $email ) {
+		$linked_users = get_users(
+			array(
+				'blog_id'    => 0,
+				'meta_key'   => self::GOOGLE_SUB_META, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_key
+				'meta_value' => $sub, // phpcs:ignore WordPress.DB.SlowDBQuery.slow_db_query_meta_value
+				'orderby'    => 'ID',
+			)
+		);
+		foreach ( $linked_users as $linked_user ) {
+			if ( 0 === strcasecmp( $linked_user->user_email, $email ) ) {
+				return $linked_user;
+			}
+		}
+		return empty( $linked_users ) ? false : $linked_users[0];
+	}
+
+	/**
+	 * Ends a reader's link to a Google Account once their address is verified.
+	 *
+	 * The address is proved by then, and a link made before that may belong to
+	 * whoever started the account, so it goes the way their sessions do. A
+	 * Google Account that is authoritative for the address links again on its
+	 * next sign-in.
+	 *
+	 * @param \WP_User $user The verified reader.
+	 */
+	public static function unlink_google_account( $user ) {
+		delete_user_meta( $user->ID, self::GOOGLE_SUB_META );
 	}
 
 	/**
@@ -348,6 +512,10 @@ class REST_Controller {
 		$google_token = new Google_Jwt( $request->get_body() );
 		$token        = $google_token->decode();
 
+		// Read before the filter below, which can replace or edit the token: only
+		// `decode()` has checked its signature, issuer, audience and expiry.
+		$google_authoritative_email = self::get_google_authoritative_email( $token );
+
 		// Allow overriding the token for testing.
 		$token = apply_filters( 'newspack_extended_access_decoded_token', $token, $request->get_body() );
 
@@ -355,38 +523,67 @@ class REST_Controller {
 			return $token;
 		}
 
+		// `sub` and the address identify the reader, and an empty `sub` in the
+		// lookup below would match any linked account.
+		if ( empty( $token->sub ) || empty( $token->email ) ) {
+			return new \WP_Error( 'newspack_extended_access_google_token', __( 'Invalid token.', 'newspack-extended-access' ), array( 'status' => 400 ) );
+		}
+
 		// Get Google Email.
 		$email = $token->email;
 
-		$existing_user = get_user_by( 'email', $email );
+		// Google's `sub` identifies the reader. An address only opens an account
+		// that has no Google Account linked yet.
+		$linked_user   = self::get_user_by_google_sub( $token->sub, $email );
+		$existing_user = $linked_user ? $linked_user : get_user_by( 'email', $email );
 		// Normalise to an int so the unlock cookie name hashes identically
 		// everywhere it is written and read.
 		$post_id = absint( $request->get_header( 'X-WP-Post-ID' ) );
 		$user_id = false;
 
 		if ( $existing_user ) {
+			// The address is all that ties this token to an unlinked account, and an
+			// account linked to another Google Account belongs to someone else.
+			if ( ! $linked_user && ( get_user_meta( $existing_user->ID, self::GOOGLE_SUB_META, true ) || $email !== $google_authoritative_email ) ) {
+				return new \WP_Error( 'newspack_extended_access_google_account_mismatch', __( 'This Google Account cannot sign in to this account.', 'newspack-extended-access' ), array( 'status' => 403 ) );
+			}
+
+			$email   = $existing_user->user_email;
 			$user_id = $existing_user->ID;
 			$result  = self::set_current_reader( $existing_user->ID );
 			if ( is_wp_error( $result ) ) {
-				return $result;
-			} else {
-				update_user_meta( $existing_user->ID, 'extended_access_sub', $token->sub );
+				return new \WP_Error( $result->get_error_code(), $result->get_error_message(), array( 'status' => 403 ) );
 			}
+			update_user_meta( $existing_user->ID, self::GOOGLE_SUB_META, $token->sub );
 		} else {
 			// Enables registering through SWG even if it is disabled.
 			add_filter( 'newspack_reader_activation_enabled', '__return_true' );
 			$result = Newspack\Reader_Activation::register_reader( $email, '', true, [ 'registration_method' => 'google-extended-access' ] );
 
-			if ( is_numeric( $result ) ) {
-				$user_id = $result;
-			} else {
-				$user_id = $result->ID;
+			if ( ! is_numeric( $result ) ) {
+				remove_filter( 'newspack_reader_activation_enabled', '__return_true' );
+				return is_wp_error( $result )
+					? new \WP_Error( $result->get_error_code(), $result->get_error_message(), array( 'status' => 403 ) )
+					: new \WP_Error( 'newspack_extended_access_registration_failed', __( 'The account could not be registered.', 'newspack-extended-access' ), array( 'status' => 409 ) );
 			}
 
+			$user_id = $result;
 			self::set_current_reader( $user_id );
 			$existing_user = get_user_by( 'id', $user_id );
 
-			add_user_meta( $result, 'extended_access_sub', $token->sub );
+			/*
+			 * Google is authoritative for this address and the account did not
+			 * exist before this request, so nobody else can hold its credentials.
+			 * The branch above never does this: a matching account may have been
+			 * created by someone else, who could still sign in with its password
+			 * once it is marked as verified. Linking comes after this because
+			 * verifying a reader ends any earlier link.
+			 */
+			if ( $email === $google_authoritative_email ) {
+				Newspack\Reader_Activation::set_reader_verified( $user_id );
+			}
+
+			add_user_meta( $user_id, self::GOOGLE_SUB_META, $token->sub );
 			remove_filter( 'newspack_reader_activation_enabled', '__return_true' );
 			// At this point the user will be logged in.
 		}
@@ -401,7 +598,7 @@ class REST_Controller {
 					'email'                 => $email,
 					'postId'                => $post_id,
 					'registrationTimestamp' => $registration_timestamp,
-					'subscriptionTimestamp' => self::get_subscription_timestamp( $user_id, $registration_timestamp ),
+					'subscriptionTimestamp' => self::get_subscription_timestamp( $user_id, $post_id, $registration_timestamp ),
 					'granted'               => true,
 					'grantReason'           => 'SUBSCRIBER',
 				)
@@ -516,7 +713,7 @@ class REST_Controller {
 		// "registered users" instead of being treated as anonymous. The derived
 		// id is a keyed hash rather than an encoding, so the internal user ID
 		// can't be recovered from the value we hand to Google.
-		$jwt_sub       = get_user_meta( $user_id, 'extended_access_sub', true );
+		$jwt_sub       = get_user_meta( $user_id, self::GOOGLE_SUB_META, true );
 		$user_state_id = $jwt_sub ? base64_encode( $jwt_sub ) : self::get_derived_user_state_id( $user_id );
 
 		// Subscriber: the active content gating system grants full access to the
@@ -529,7 +726,7 @@ class REST_Controller {
 					'id'                    => $user_state_id,
 					'email'                 => $email,
 					'registrationTimestamp' => $registration_timestamp,
-					'subscriptionTimestamp' => self::get_subscription_timestamp( $user_id, $registration_timestamp ),
+					'subscriptionTimestamp' => self::get_subscription_timestamp( $user_id, $post_id, $registration_timestamp ),
 					'granted'               => true,
 					'grantReason'           => 'SUBSCRIBER',
 				)
